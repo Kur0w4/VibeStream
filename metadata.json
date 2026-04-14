@@ -1,0 +1,6 @@
+{
+  "name": "VibeStream",
+  "description": "Modern music streaming aggregator with YouTube and Jamendo integration, featuring a glassmorphism dark theme.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
