@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import { search } from "youtube-search-without-api-key";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,67 +11,43 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Mock Search API
-  app.get("/api/search", (req, res) => {
-    const query = req.query.q as string;
-    
-    // Simulated YouTube API v3 response
-    const mockResults = [
-      {
-        id: "1",
-        videoId: "jfKfPfyJRdk",
-        title: "Lofi Hip Hop Radio - Beats to Relax/Study to",
-        artist: "Lofi Girl",
-        thumbnail: "https://picsum.photos/seed/lofi/300/200",
-        duration: "Live",
-        url: "https://www.youtube.com/watch?v=jfKfPfyJRdk"
-      },
-      {
-        id: "2",
-        videoId: "5qap5aO4i9A",
-        title: "lofi hip hop radio - beats to sleep/chill to",
-        artist: "Lofi Girl",
-        thumbnail: "https://picsum.photos/seed/chill/300/200",
-        duration: "Live",
-        url: "https://www.youtube.com/watch?v=5qap5aO4i9A"
-      },
-      {
-        id: "3",
-        videoId: "hHW1oY26kxQ",
-        title: "Rainy Night in Tokyo - Lofi Hip Hop Mix",
-        artist: "The Jazz Hop Café",
-        thumbnail: "https://picsum.photos/seed/tokyo/300/200",
-        duration: "1:02:34",
-        url: "https://www.youtube.com/watch?v=hHW1oY26kxQ"
-      },
-      {
-        id: "4",
-        videoId: "n61ULEU7FZ0",
-        title: "Coffee Shop Radio - 24/7 Lofi Hip Hop Beats",
-        artist: "STEEZYASFUCK",
-        thumbnail: "https://picsum.photos/seed/coffee/300/200",
-        duration: "Live",
-        url: "https://www.youtube.com/watch?v=n61ULEU7FZ0"
-      },
-      {
-        id: "5",
-        videoId: "DWcUY5XDX50",
-        title: "Late Night Jazz - Relaxing Saxophone Music",
-        artist: "Relaxing Jazz Piano",
-        thumbnail: "https://picsum.photos/seed/jazz/300/200",
-        duration: "3:45:12",
-        url: "https://www.youtube.com/watch?v=DWcUY5XDX50"
-      }
-    ];
+  // Real Search API
+  app.get("/api/search", async (req, res) => {
+    const query = req.query.q as string || "lofi hip hop";
+    const searchQuery = `${query} song OR audio`;
+    try {
+      console.log(`[Server] Searching for: ${searchQuery}`);
+      const ytResults = await search(searchQuery);
+      
+      const tracks = ytResults
+        .filter((video: any) => {
+          const duration = video.duration_raw || video.snippet?.duration || "";
+          if (!duration || duration.toLowerCase() === "live") return true;
+          
+          const parts = duration.split(":");
+          if (parts.length > 2) return false; // Contains hours (album or mix)
+          if (parts.length === 2) {
+             const mins = parseInt(parts[0], 10);
+             if (mins > 15) return false; // Longer than 15 mins (EP or Mix)
+          }
+          return true;
+        })
+        .map((video: any) => ({
+          id: video.id?.videoId || Math.random().toString(36).substr(2, 9),
+          videoId: video.id?.videoId || "",
+          title: video.title || "Unknown Title",
+          artist: video.snippet?.channelTitle || "YouTube Artist",
+          thumbnail: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.default?.url || "",
+          duration: video.duration_raw || video.snippet?.duration || "4:00",
+          url: `https://www.youtube.com/watch?v=${video.id?.videoId}`
+        }))
+        .slice(0, 50); // Limit to 50 results
 
-    const filteredResults = query 
-      ? mockResults.filter(item => 
-          item.title.toLowerCase().includes(query.toLowerCase()) || 
-          item.artist.toLowerCase().includes(query.toLowerCase())
-        )
-      : mockResults;
-
-    res.json(filteredResults);
+      res.json(tracks);
+    } catch (error) {
+      console.error("[Server] Search Error:", error);
+      res.status(500).json({ error: "Failed to fetch from YouTube" });
+    }
   });
 
   // Vite middleware for development

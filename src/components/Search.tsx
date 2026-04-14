@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Play, Clock, MoreHorizontal } from 'lucide-react';
+import { Search as SearchIcon, Play, Clock, MoreHorizontal, Heart } from 'lucide-react';
 import { searchTracks, getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
@@ -8,7 +8,8 @@ export const Search = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
-  const { playTrack, currentTrack, isPlaying } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, playlists, addTrackToPlaylist, toggleLike, likedSongs } = usePlayerStore();
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInitial = async () => {
@@ -17,116 +18,154 @@ export const Search = () => {
       setResults(data);
       setLoading(false);
     };
-    fetchInitial();
-  }, []);
+    if (!query) {
+      fetchInitial();
+    }
+  }, [query]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
     if (!query.trim()) return;
-    setLoading(true);
-    const data = await searchTracks(query);
-    setResults(data);
-    setLoading(false);
+
+    const timeoutId = setTimeout(async () => {
+      setLoading(true);
+      const data = await searchTracks(query);
+      setResults(data);
+      setLoading(false);
+    }, 600);
+
+    return () => clearTimeout(timeoutId);
+  }, [query]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
   };
 
+  // Close dropdown when clicking elsewhere
+  useEffect(() => {
+    const handleClick = () => setActiveDropdown(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <header className="flex items-center justify-between mb-8">
-        <form onSubmit={handleSearch} className="relative w-full max-w-md">
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-text-dim w-4 h-4" />
+    <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar">
+      {/* Header with Search */}
+      <div className="sticky top-0 z-10 px-8 py-6 bg-bg-main/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between">
+        <form onSubmit={handleSearch} className="relative group w-96">
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
           <input 
-            type="text"
-            placeholder="Search artists, songs, or mood..."
+            type="text" 
+            placeholder="Search for music, artists..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-glass border border-glass-border rounded-full py-2.5 pl-11 pr-4 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 outline-none focus:border-accent/50 focus:bg-white/10 transition-all text-sm placeholder:text-text-dim/50"
           />
         </form>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-slate-600 border border-glass-border" />
-          <span className="text-sm font-medium text-text-main">Alex Rivera</span>
+        
+        <div className="flex items-center gap-4">
+          <button className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm font-semibold hover:bg-white/10 transition-all">Sign In</button>
+          <button className="px-5 py-2.5 rounded-xl bg-accent text-black text-sm font-bold hover:opacity-90 shadow-lg shadow-accent/20 transition-all">Upgrade Plan</button>
         </div>
-      </header>
+      </div>
 
-      <section className="mb-10">
-        <div className="relative h-[220px] rounded-[24px] overflow-hidden bg-gradient-to-br from-[#0ea5e9] to-[#6366f1] p-8 flex flex-col justify-end group">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-          <div className="relative z-10">
-            <span className="inline-block bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white mb-2 uppercase tracking-wider">
-              NEW RELEASE
-            </span>
-            <h1 className="text-4xl font-extrabold text-white mb-1 tracking-tight">Midnight City Sessions</h1>
-            <p className="text-white/80 text-sm max-w-md">Experience the ultimate lo-fi journey curated for deep focus.</p>
+      <div className="px-8 py-6 space-y-12 pb-32">
+        {/* Recommended/Trending Section */}
+        <section>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-white">Recommended for you</h3>
+              <p className="text-text-dim text-sm mt-1">Based on your recent listening</p>
+            </div>
+            <button className="text-accent text-sm font-bold hover:underline underline-offset-4">View All</button>
           </div>
-        </div>
-      </section>
+          
+          <div className="space-y-1">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              results.map((track, index) => (
+                <div 
+                  key={track.id}
+                  onClick={() => playTrack(track)}
+                  className={cn(
+                    "grid grid-cols-[40px_1fr_1fr_80px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all duration-300 relative",
+                    currentTrack?.id === track.id ? "bg-accent/10 border border-accent/20" : "hover:bg-white/5 border border-transparent"
+                  )}
+                >
+                  <div className="flex items-center justify-center">
+                    {currentTrack?.id === track.id && isPlaying ? (
+                      <div className="wave-container">
+                        <div className="wave-bar" />
+                        <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
+                        <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-text-dim group-hover:hidden">{index + 1}</span>
+                    )}
+                    <Play className={cn(
+                      "w-4 h-4 text-accent hidden group-hover:block fill-current",
+                      currentTrack?.id === track.id && "block"
+                    )} />
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <img src={track.thumbnail} className="w-12 h-12 rounded-xl object-cover shadow-lg" alt={track.title} />
+                    <div className="min-w-0">
+                      <p className={cn("text-sm font-bold truncate", currentTrack?.id === track.id ? "text-accent" : "text-white")}>
+                        {track.title}
+                      </p>
+                      <p className="text-xs text-text-dim truncate font-medium">{track.artist}</p>
+                    </div>
+                  </div>
+                  
+                  <span className="text-xs text-text-dim font-medium">Vibe Album</span>
+                  <span className="text-xs text-text-dim font-mono text-center">{track.duration}</span>
+                  
+                  <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity gap-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white"
+                    >
+                      <Heart className={cn("w-4 h-4", likedSongs?.some(t => t.id === track.id) ? "fill-rose-500 text-rose-500" : "")} />
+                    </button>
 
-      <section className="mb-12">
-        <h2 className="text-lg font-bold mb-4 text-text-main">Trending Now</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {results.slice(0, 4).map((track) => (
-            <div 
-              key={track.id}
-              className="group bg-glass hover:bg-white/5 p-3 rounded-[16px] border border-glass-border transition-all duration-300 cursor-pointer"
-              onClick={() => playTrack(track)}
-            >
-              <div className="relative aspect-square rounded-[12px] overflow-hidden mb-3 shadow-lg">
-                <img 
-                  src={track.thumbnail} 
-                  alt={track.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="w-10 h-10 bg-text-main rounded-full flex items-center justify-center shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                    <Play className="text-bg-main fill-current w-5 h-5 ml-0.5" />
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === track.id ? null : track.id); }}
+                      className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+
+                    {/* Playlist Dropdown */}
+                    {activeDropdown === track.id && (
+                      <div 
+                        className="absolute right-12 top-10 w-48 bg-bg-sidebar border border-white/10 rounded-xl shadow-2xl py-2 z-50 overflow-hidden" 
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="px-4 py-2 text-xs font-bold text-text-dim uppercase tracking-wider mb-1">Add to Playlist</div>
+                        {playlists?.length > 0 ? playlists.map(pl => (
+                          <button 
+                            key={pl.id}
+                            onClick={() => { addTrackToPlaylist(pl.id, track); setActiveDropdown(null); }}
+                            className="w-full text-left px-4 py-2 hover:bg-white/5 text-sm text-white transition-colors flex items-center justify-between group/btn"
+                          >
+                            <span className="truncate pr-2">{pl.name}</span>
+                            <span className="text-[10px] text-accent opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">Add +</span>
+                          </button>
+                        )) : (
+                          <div className="px-4 py-2 text-sm text-text-dim italic">No playlists yet. Go to Playlists tab to create one.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-              <h3 className="font-semibold text-sm line-clamp-1 text-text-main">{track.title}</h3>
-              <p className="text-text-dim text-xs">{track.artist}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-text-main">Recommended for you</h2>
-          <button className="text-xs text-text-dim hover:text-text-main font-semibold transition-colors">Show all</button>
-        </div>
-        
-        <div className="space-y-1">
-          {results.map((track, index) => (
-            <div 
-              key={track.id}
-              onClick={() => playTrack(track)}
-              className={cn(
-                "grid grid-cols-[40px_1fr_1fr_80px_40px] gap-4 px-4 py-2.5 rounded-xl items-center group cursor-pointer transition-colors",
-                currentTrack?.id === track.id ? "bg-accent/10" : "hover:bg-glass"
-              )}
-            >
-              <span className="text-xs text-text-dim group-hover:hidden">{index + 1}</span>
-              <Play className="w-3.5 h-3.5 text-accent hidden group-hover:block fill-current" />
-              
-              <div className="flex items-center gap-3">
-                <img src={track.thumbnail} className="w-10 h-10 rounded-lg object-cover border border-glass-border" />
-                <div>
-                  <p className={cn("text-sm font-semibold", currentTrack?.id === track.id ? "text-accent" : "text-text-main")}>
-                    {track.title}
-                  </p>
-                  <p className="text-[11px] text-text-dim">{track.artist}</p>
-                </div>
-              </div>
-              
-              <span className="text-xs text-text-dim">Vibe Mix</span>
-              <span className="text-xs text-text-dim text-center">{track.duration}</span>
-              <button className="text-text-dim hover:text-text-main opacity-0 group-hover:opacity-100 transition-opacity flex justify-end">
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 };
