@@ -305,10 +305,22 @@ async function startServer() {
       const artists: { name: string; thumbnail: string; score: number }[] = [];
 
       for (const v of results as any[]) {
-        const channel: string =
+        let channel: string =
           v.snippet?.channelTitle ||
           (v as any).author?.name ||
           (v as any).channelTitle || "";
+
+        // Fallback for youtube-search-without-api-key missing channel title
+        if (!channel && v.title) {
+          const parts = v.title.split("-");
+          if (parts.length > 1) {
+            channel = parts[0].trim();
+          } else {
+            // Just use a sanitized version of the title if no dash (e.g. drop words like 'official video')
+            channel = v.title.replace(/[\(\[].*?[\)\]]/g, "").trim();
+          }
+        }
+        
         const thumb: string =
           v.snippet?.thumbnails?.high?.url ||
           v.snippet?.thumbnails?.medium?.url ||
@@ -334,6 +346,12 @@ async function startServer() {
 
       // Best-matching channels first
       artists.sort((a, b) => b.score - a.score);
+
+      // If absolutely no channels were matched, create a fallback artist from the query
+      if (artists.length === 0 && q) {
+        artists.push({ name: q, thumbnail: "", score: 10 });
+      }
+
       console.log(`[Server] Artist search returned ${artists.length} channels`);
       res.json(artists.slice(0, 16).map(({ name, thumbnail }) => ({ name, thumbnail })));
     } catch (e) {
