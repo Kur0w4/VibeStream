@@ -31,5 +31,22 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
   }
+
+  .wave-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 16px;
+  }
+  .wave-bar {
+    width: 3px;
+    background: var(--color-accent);
+    border-radius: 2px;
+    animation: wave 0.8s ease-in-out infinite alternate;
+  }
+  @keyframes wave {
+    from { height: 4px; }
+    to { height: 16px; }
+  }
 }
 

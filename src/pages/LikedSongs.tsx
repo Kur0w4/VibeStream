@@ -1,56 +1,95 @@
-import React from 'react';
-import { Heart, Play, Clock, MoreHorizontal, Search, Shuffle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Heart, Play, Pause, Clock, MoreHorizontal, Search as SearchIcon, Shuffle } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const LikedSongs = () => {
-  const { playTrack, currentTrack, isPlaying, likedSongs, toggleLike } = usePlayerStore();
-  
+  const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, toggleLike, user } = usePlayerStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const h = () => setActiveDropdown(null);
+    window.addEventListener('click', h);
+    return () => window.removeEventListener('click', h);
+  }, []);
+
+  const filtered = likedSongs.filter((t) =>
+    !searchQuery.trim() ||
+    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const playAll = () => { if (filtered.length > 0) playTrack(filtered[0]); };
+  const playShuffle = () => {
+    if (filtered.length === 0) return;
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+    playTrack(shuffled[0]);
+  };
+
+  const displayName = user?.username ?? 'You';
+
   return (
-    <div className="flex-1 bg-gradient-to-b from-rose-900/40 via-bg-main to-black overflow-y-auto custom-scrollbar">
+    <div className="flex-1 bg-gradient-to-b from-rose-900/30 via-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
       {/* Hero Header */}
-      <div className="px-10 py-16 flex items-end gap-8 bg-gradient-to-b from-transparent to-bg-main/60">
-        <div className="w-56 h-56 bg-gradient-to-br from-rose-500 to-red-700 rounded-[40px] shadow-[0_20px_50px_rgba(244,63,94,0.3)] flex items-center justify-center p-12">
-           <Heart className="w-full h-full text-white fill-white drop-shadow-2xl" />
+      <div className="px-10 py-14 flex items-end gap-8">
+        <div className="w-52 h-52 bg-gradient-to-br from-rose-500 to-red-700 rounded-[36px] shadow-[0_20px_50px_rgba(244,63,94,0.3)] flex items-center justify-center p-12 shrink-0">
+          <Heart className="w-full h-full text-white fill-white drop-shadow-2xl" />
         </div>
-        <div className="mb-4">
+        <div className="mb-2">
           <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.4em]">Playlist</span>
           <h1 className="text-7xl font-black text-white mt-2 tracking-tighter">Liked Songs</h1>
-          <div className="flex items-center gap-2 mt-6">
-            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
-              <img src="https://picsum.photos/seed/user/100" className="w-full h-full rounded-full object-cover" />
+          <div className="flex items-center gap-2 mt-5">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
+              <span className="text-[10px] font-black text-black">{displayName.slice(0, 1).toUpperCase()}</span>
             </div>
-            <span className="text-sm font-black text-white">Alex Rivera</span>
+            <span className="text-sm font-black text-white">{displayName}</span>
             <span className="w-1 h-1 bg-white/30 rounded-full" />
-            <span className="text-sm font-medium text-text-dim">{likedSongs?.length || 0} songs</span>
+            <span className="text-sm font-medium text-text-dim">
+              {likedSongs.length} song{likedSongs.length !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="px-10 py-8">
+      <div className="px-10 py-6">
         {/* Actions bar */}
-        <div className="flex items-center gap-6 mb-10">
-          <button className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20">
-             <Play className="w-7 h-7 fill-current ml-1" />
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={playAll}
+            disabled={likedSongs.length === 0}
+            className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
+          >
+            <Play className="w-7 h-7 fill-current ml-0.5" />
+          </button>
+          <button
+            onClick={playShuffle}
+            disabled={likedSongs.length === 0}
+            className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all disabled:opacity-40"
+          >
+            <Shuffle className="w-6 h-6" />
           </button>
           <button className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
-             <Shuffle className="w-6 h-6" />
+            <MoreHorizontal className="w-6 h-6" />
           </button>
-          <button className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
-             <MoreHorizontal className="w-6 h-6" />
-          </button>
+
+          {/* Search */}
           <div className="ml-auto relative group">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-white transition-colors" />
-             <input 
-               type="text" 
-               placeholder="Search in liked songs"
-               className="bg-transparent border-none text-sm text-white placeholder:text-text-dim focus:ring-0 pl-10 w-48 transition-all"
-             />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in liked songs"
+              className="bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-text-dim/50 outline-none focus:border-accent/50 focus:bg-white/8 transition-all w-52"
+            />
           </div>
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-4">
+        <div className="grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
           <span className="text-center">#</span>
           <span>Title</span>
           <span>Album</span>
@@ -58,55 +97,70 @@ export const LikedSongs = () => {
           <span />
         </div>
 
-        {/* Tracks List */}
-        <div className="space-y-1 pb-32">
-          {(!likedSongs || likedSongs.length === 0) ? (
-            <div className="text-center py-20 text-text-dim font-medium italic">
-               No liked songs yet. Start liking tracks in the Search tab!
+        {/* Track list */}
+        <div className="space-y-1">
+          {likedSongs.length === 0 ? (
+            <div className="text-center py-20">
+              <Heart className="w-12 h-12 mx-auto mb-4 text-rose-500/30" />
+              <p className="text-text-dim font-medium italic">No liked songs yet.</p>
+              <p className="text-text-dim text-sm mt-1">Like tracks from the Home or Trends tabs</p>
             </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-center py-10 text-text-dim font-medium italic">No songs match "{searchQuery}"</p>
           ) : (
-            likedSongs.map((track, index) => (
-              <div 
-                key={track.id}
-                onClick={() => playTrack(track)}
-                className={cn(
-                  "grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all",
-                  currentTrack?.id === track.id ? "bg-white/10" : "hover:bg-white/5"
-                )}
-              >
-                <div className="text-center">
-                  {currentTrack?.id === track.id && isPlaying ? (
-                    <div className="wave-container scale-50 justify-center">
-                      <div className="wave-bar" />
-                      <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
-                      <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
-                    </div>
-                  ) : (
-                    <span className="text-xs font-bold text-text-dim group-hover:hidden">{index + 1}</span>
+            filtered.map((track, index) => {
+              const isActive = currentTrack?.id === track.id;
+              return (
+                <div
+                  key={track.id}
+                  onClick={() => isActive ? togglePause() : playTrack(track)}
+                  className={cn(
+                    'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
+                    isActive ? 'bg-rose-500/10 border border-rose-500/20' : 'hover:bg-white/5 border border-transparent'
                   )}
-                  <Play className={cn("w-4 h-4 text-white mx-auto hidden group-hover:block fill-white", currentTrack?.id === track.id && "block")} />
-                </div>
+                >
+                  <div className="text-center">
+                    {isActive && isPlaying ? (
+                      <div className="flex gap-[2px] items-end h-4 justify-center">
+                        {[1,2,3].map((i) => (
+                          <div key={i} className="w-[3px] bg-rose-400 rounded-full animate-bounce" style={{ height: `${8+i*4}px`, animationDelay: `${i*0.1}s` }} />
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        <span className={cn('text-xs font-bold text-text-dim group-hover:hidden', isActive && 'hidden')}>{index + 1}</span>
+                        <div className={cn('hidden group-hover:flex justify-center', isActive && 'flex')}>
+                          {isActive ? <Pause className="w-4 h-4 text-rose-400 fill-current" /> : <Play className="w-4 h-4 text-rose-400 fill-current" />}
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-                <div className="flex items-center gap-4">
-                  <img src={track.thumbnail} className="w-10 h-10 rounded-lg shadow-lg" alt={track.title} />
-                  <div className="min-w-0">
-                    <p className={cn("text-sm font-bold truncate", currentTrack?.id === track.id ? "text-accent" : "text-white")}>
-                      {track.title}
-                    </p>
-                    <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <img src={track.thumbnail} className="w-10 h-10 rounded-xl shadow-lg shrink-0 object-cover" alt="" />
+                    <div className="min-w-0">
+                      <p className={cn('text-sm font-bold truncate', isActive ? 'text-rose-400' : 'text-white')}>{track.title}</p>
+                      <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
+                    </div>
+                  </div>
+
+                  <span className="text-xs text-text-dim font-medium truncate">YouTube Music</span>
+                  <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
+
+                  <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                      className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                    {activeDropdown === track.id && (
+                      <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />
+                    )}
                   </div>
                 </div>
-
-                <span className="text-xs text-text-dim font-medium truncate">Premium Vibe Selection</span>
-                <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
-
-                <div className="flex justify-end pr-2">
-                  <button onClick={(e) => { e.stopPropagation(); toggleLike(track); }} className="hover:scale-110 active:scale-90 transition-transform p-2">
-                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
