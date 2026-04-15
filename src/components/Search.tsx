@@ -121,7 +121,7 @@ export const Search = () => {
     const liked = likedSongs?.some((t) => t.id === track.id);
     return (
       <div
-        onClick={() => isActive ? togglePause() : playTrack(track)}
+        onClick={() => isActive ? togglePause() : playTrack(track, results)}
         className={cn(
           'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all duration-300 hover:scale-[1.02] z-0 hover:z-10',
           isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
@@ -210,19 +210,43 @@ export const Search = () => {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               {quickPicks.map((track) => {
                 const isActive = currentTrack?.id === track.id;
+                const liked = likedSongs?.some((t) => t.id === track.id);
                 return (
                   <div
                     key={track.id}
-                    onClick={() => isActive ? togglePause() : playTrack(track)}
+                    onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
                     className={cn(
-                      'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border',
+                      'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border relative',
                       isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
                     )}
                   >
                     <img src={track.thumbnail} className="w-16 h-16 object-cover shrink-0" alt="" />
-                    <span className="font-bold text-sm text-white truncate flex-1 pr-2">{track.title}</span>
-                    <div className={cn('mr-3 opacity-0 group-hover:opacity-100 transition-opacity', isActive && 'opacity-100')}>
-                      {isActive && isPlaying ? <Pause className="w-5 h-5 text-accent fill-current" /> : <Play className="w-5 h-5 text-accent fill-current" />}
+                    <div className="flex-1 min-w-0 pr-2">
+                       <p className="font-bold text-sm text-white truncate leading-none">{track.title}</p>
+                       <p className="text-[10px] text-text-dim mt-1 truncate font-medium">{track.artist}</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 mr-3">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                        className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', liked ? 'opacity-100' : '')}
+                      >
+                        <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
+                      </button>
+                      
+                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                          className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                        {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                      </div>
+
+                      <div className={cn('opacity-0 group-hover:opacity-0 transition-opacity', isActive && 'opacity-100')}>
+                        {isActive && isPlaying ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
+                      </div>
                     </div>
                   </div>
                 );
@@ -244,9 +268,17 @@ export const Search = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-black text-white">Your Mix</h3>
-                <p className="text-text-dim text-sm mt-0.5">Personalized playlist from your listening history</p>
+                <p className="text-text-dim text-sm mt-0.5">
+                  {user ? 'Personalized playlist from your listening history' : 'Login to unlock this feature'}
+                </p>
               </div>
-              <Play className="w-7 h-7 text-accent fill-current opacity-0 group-hover:opacity-100 transition-opacity" />
+              {user ? (
+                <Play className="w-7 h-7 text-accent fill-current opacity-0 group-hover:opacity-100 transition-opacity" />
+              ) : (
+                <div className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-black text-text-dim uppercase tracking-widest group-hover:border-accent group-hover:text-accent transition-all">
+                  Locked
+                </div>
+              )}
             </div>
           </section>
         )}

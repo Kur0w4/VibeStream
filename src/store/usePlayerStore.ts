@@ -23,8 +23,12 @@ interface PlayerState {
   progress: number;
   duration: number;
   isExpanded: boolean;
+  isShuffle: boolean;
+  repeatMode: 'off' | 'all' | 'one';
 
-  // Queue
+  // Context & Queue
+  playbackContext: Track[] | null;
+  contextIndex: number;
   queue: Track[];
 
   // Auth
@@ -37,13 +41,15 @@ interface PlayerState {
   listeningHistory: Track[];
 
   // Player actions
-  playTrack: (track: Track) => void;
+  playTrack: (track: Track, context?: Track[]) => void;
   togglePause: () => void;
   setIsPlaying: (v: boolean) => void;
   setVolume: (v: number) => void;
   setProgress: (v: number) => void;
   setDuration: (v: number) => void;
   setIsExpanded: (v: boolean) => void;
+  toggleShuffle: () => void;
+  toggleRepeat: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
 
@@ -86,6 +92,10 @@ export const usePlayerStore = create<PlayerState>()(
       progress: 0,
       duration: 0,
       isExpanded: false,
+      isShuffle: false,
+      repeatMode: 'off',
+      playbackContext: null,
+      contextIndex: -1,
       queue: [],
       user: null,
       playlists: [],
@@ -94,8 +104,16 @@ export const usePlayerStore = create<PlayerState>()(
       listeningHistory: [],
 
       // ── Player ──────────────────────────────────────────────────────────────────
-      playTrack: (track) => {
-        set({ currentTrack: track, isPlaying: true, progress: 0 });
+      playTrack: (track, context) => {
+        let updates: any = { currentTrack: track, isPlaying: true, progress: 0 };
+        if (context) {
+          const idx = context.findIndex((t) => t.id === track.id);
+          updates = { ...updates, playbackContext: context, contextIndex: idx >= 0 ? idx : 0 };
+        } else {
+          // If a single track is explicitly played, wipe existing context
+          updates = { ...updates, playbackContext: null, contextIndex: -1 };
+        }
+        set(updates);
         get().addToHistory(track);
       },
       togglePause: () => set((s) => ({ isPlaying: !s.isPlaying })),
@@ -117,13 +135,97 @@ export const usePlayerStore = create<PlayerState>()(
       clearQueue: () => set({ queue: [] }),
       playNext: () => {
         const { queue } = get();
-        if (queue.length === 0) return;
-        const [next, ...rest] = queue;
-        set({ queue: rest, currentTrack: next, isPlaying: true, progress: 0 });
-        get().addToHistory(next);
+        if (queue.length > 0) {
+          const [next, ...rest] = queue;
+          set({ queue: rest, currentTrack: next, isPlaying: true, progress: 0 });
+          get().addToHistory(next);
+        } else {
+          get().nextTrack(); // use intelligent nextTrack
+        }
       },
-      nextTrack: () => get().playNext(),
-      prevTrack: () => {},
+      toggleShuffle: () => set((s) => ({ isShuffle: !s.isShuffle })),
+      toggleRepeat: () => set((s) => ({
+        repeatMode: s.repeatMode === 'off' ? 'all' : s.repeatMode === 'all' ? 'one' : 'off'
+      })),
+      nextTrack: () => {
+        const { queue, playbackContext, contextIndex, repeatMode, isShuffle, currentTrack } = get();
+        
+        // 1. Queue supersedes everything
+        if (queue.length > 0) {
+          const [next, ...rest] = queue;
+          set({ queue: rest, currentTrack: next, isPlaying: true, progress: 0 });
+          get().addToHistory(next);
+          return;
+        }
+
+        // 2. Playback Context (Playlists / Albums)
+        if (playbackContext && playbackContext.length > 0) {
+           let nextIdx = contextIndex + 1;
+           if (nextIdx >= playbackContext.length) {
+              if (repeatMode === 'all') {
+                nextIdx = 0;
+              } else {
+                // End of context, no repeat
+                set({ isPlaying: false, progress: 0 });
+                return;
+              }
+           }
+           const next = playbackContext[nextIdx];
+           set({ currentTrack: next, contextIndex: nextIdx, isPlaying: true, progress: 0 });
+           get().addToHistory(next);
+           return;
+        }
+
+        // 3. Auto-Shuffle random fallback for lonely songs
+        if (isShuffle && currentTrack?.artist) {
+            fetch('/api/search?q=' + encodeURIComponent(currentTrack.artist + ' song'))
+              .then(r => r.json())
+              .then((results: Track[]) => {
+                 if (results && results.length > 0) {
+                    const pool = results.filter(t => t.id !== currentTrack.id);
+                    if (pool.length > 0) {
+                      const next = pool[Math.floor(Math.random() * pool.length)];
+                      set({ currentTrack: next, isPlaying: true, progress: 0 });
+                      get().addToHistory(next);
+                    }
+                 }
+              }).catch(() => { set({ isPlaying: false }); });
+            return;
+        }
+
+        // 4. Default: Stop playing
+        set({ isPlaying: false, progress: 0 });
+      },
+      prevTrack: () => {
+        const { progress, playbackContext, contextIndex, repeatMode } = get();
+        // If > 3 seconds, rewind to start
+        if (progress > 0.02) { 
+           // Handled externally by resetting progress, but we signal it by re-triggering current track
+           const { currentTrack } = get();
+           if (currentTrack) {
+             set({ progress: 0 });
+             // We can't actually seek from Zustand, the Player.tsx component observes progress.
+             // But actually, clicking Prev in UI restarts the youtube video if we trigger a play state refresh.
+             // Let's just set progress to 0, which works if we bind it carefully, or we can just let Player handle it.
+           }
+           return;
+        }
+        
+        // Else go back in context
+        if (playbackContext && playbackContext.length > 0) {
+           let prevIdx = contextIndex - 1;
+           if (prevIdx < 0) {
+              if (repeatMode === 'all') {
+                prevIdx = playbackContext.length - 1;
+              } else {
+                prevIdx = 0;
+              }
+           }
+           const prev = playbackContext[prevIdx];
+           set({ currentTrack: prev, contextIndex: prevIdx, isPlaying: true, progress: 0 });
+           get().addToHistory(prev);
+        }
+      },
 
       // ── Auth ─────────────────────────────────────────────────────────────────
       login: (user) => {

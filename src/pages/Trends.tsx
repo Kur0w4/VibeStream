@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Play, TrendingUp, MoreHorizontal, Clock } from 'lucide-react';
+import { Search as SearchIcon, Play, TrendingUp, MoreHorizontal, Clock, Heart } from 'lucide-react';
 import { getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
+import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const Trends = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
-  const { playTrack, currentTrack, isPlaying } = usePlayerStore();
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { playTrack, currentTrack, isPlaying, likedSongs, toggleLike } = usePlayerStore();
+
+  React.useEffect(() => {
+    const h = () => setActiveDropdown(null);
+    window.addEventListener('click', h);
+    return () => window.removeEventListener('click', h);
+  }, []);
 
   useEffect(() => {
     const fetchTrends = async () => {
@@ -41,7 +49,10 @@ export const Trends = () => {
       <div className="px-8 py-6 pb-32">
         <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
           <div className="flex items-center gap-8">
-            <button className="flex items-center gap-2 text-sm font-bold text-accent">
+            <button 
+              onClick={() => results.length > 0 && playTrack(results[0], results)}
+              className="flex items-center gap-2 text-sm font-bold text-accent"
+            >
                <Play className="fill-accent w-4 h-4" /> Play All
             </button>
             <div className="flex items-center gap-2 text-xs font-bold text-text-dim uppercase tracking-widest">
@@ -64,9 +75,12 @@ export const Trends = () => {
             results.map((track, index) => (
               <div 
                 key={track.id}
-                onClick={() => playTrack(track)}
+                onClick={() => {
+                  const isActive = currentTrack?.id === track.id;
+                  isActive ? togglePause() : playTrack(track, results);
+                }}
                 className={cn(
-                  "grid grid-cols-[40px_1fr_1fr_80px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all duration-300",
+                  "grid grid-cols-[40px_1fr_1fr_80px_40px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all duration-300",
                   currentTrack?.id === track.id ? "bg-accent/10 border border-accent/20 shadow-lg shadow-accent/5" : "hover:bg-white/5 border border-transparent"
                 )}
               >
@@ -99,10 +113,18 @@ export const Trends = () => {
                 <span className="text-xs text-text-dim font-medium">Vibe Album</span>
                 <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
                 
-                <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white">
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                  className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                >
+                  <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs?.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
+                </button>
+
+                <div className="relative flex justify-end opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white">
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
+                  {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
                 </div>
               </div>
             ))

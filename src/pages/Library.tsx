@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library as LibraryIcon, ListMusic, Mic2, Disc, Play, Plus, Clock, X, ArrowRight } from 'lucide-react';
+import { Library as LibraryIcon, ListMusic, Mic2, Disc, Play, Plus, Clock, X, ArrowRight, Heart, MoreHorizontal } from 'lucide-react';
+import { TrackDropdown } from '../components/Search';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 
@@ -8,8 +9,16 @@ export const Library = () => {
   const navigate = useNavigate();
   const {
     playlists, likedSongs, followedArtists, listeningHistory,
-    playTrack, currentTrack, isPlaying, createPlaylist,
+    playTrack, currentTrack, isPlaying, createPlaylist, toggleLike
   } = usePlayerStore();
+
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const h = () => setActiveDropdown(null);
+    window.addEventListener('click', h);
+    return () => window.removeEventListener('click', h);
+  }, []);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -99,31 +108,62 @@ export const Library = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {listeningHistory.slice(0, 9).map((track) => (
-                <div
-                  key={track.id}
-                  onClick={() => playTrack(track)}
-                  className={cn(
-                    'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01]',
-                    currentTrack?.id === track.id
-                      ? 'bg-accent/10 border-accent/20'
-                      : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10'
-                  )}
-                >
-                  <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0">
-                    <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-5 h-5 text-white fill-white" />
+              {listeningHistory.slice(0, 9).map((track) => {
+                const isActive = currentTrack?.id === track.id;
+                const isLiked = likedSongs?.some(t => t.id === track.id);
+                return (
+                  <div
+                    key={track.id}
+                    onClick={() => playTrack(track, listeningHistory)}
+                    className={cn(
+                      'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01]',
+                      isActive
+                        ? 'bg-accent/10 border-accent/20'
+                        : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10'
+                    )}
+                  >
+                    <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0">
+                      <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
+                      <div className={cn('absolute inset-0 bg-black/50 transition-opacity flex items-center justify-center', isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
+                        {isActive && isPlaying ? (
+                           <div className="flex gap-[2px] items-end h-3">
+                              <div className="w-[2px] h-3 bg-white animate-bounce" />
+                              <div className="w-[2px] h-2 bg-white animate-bounce" style={{ animationDelay: '0.1s' }} />
+                              <div className="w-[2px] h-3 bg-white animate-bounce" style={{ animationDelay: '0.2s' }} />
+                           </div>
+                        ) : (
+                          <Play className="w-5 h-5 text-white fill-white" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className={cn('text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>
+                        {track.title}
+                      </h3>
+                      <p className="text-xs text-text-dim font-medium truncate mt-0.5">{track.artist}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                       <button
+                         onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
+                       >
+                         <Heart className={cn('w-4 h-4', isLiked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
+                       </button>
+
+                       <div className="relative" onClick={(e) => e.stopPropagation()}>
+                         <button
+                           onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                         >
+                           <MoreHorizontal className="w-4 h-4" />
+                         </button>
+                         {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                       </div>
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className={cn('text-sm font-bold truncate', currentTrack?.id === track.id ? 'text-accent' : 'text-white')}>
-                      {track.title}
-                    </h3>
-                    <p className="text-xs text-text-dim font-medium truncate mt-0.5">{track.artist}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

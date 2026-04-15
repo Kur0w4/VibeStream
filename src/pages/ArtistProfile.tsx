@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2 } from 'lucide-react';
+import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2, Heart, MoreHorizontal } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
+import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const ArtistProfile = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
-  const { playTrack, currentTrack, isPlaying, togglePause, followArtist, unfollowArtist, followedArtists } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, togglePause, followArtist, unfollowArtist, followedArtists, likedSongs, toggleLike } = usePlayerStore();
 
   const artistName = name ? decodeURIComponent(name) : '';
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [thumbnail, setThumbnail] = useState('');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const h = () => setActiveDropdown(null);
+    window.addEventListener('click', h);
+    return () => window.removeEventListener('click', h);
+  }, []);
 
   const isFollowed = followedArtists.some((a) => a.name === artistName);
 
@@ -66,7 +74,7 @@ export const ArtistProfile = () => {
       {/* Controls */}
       <div className="px-10 py-5 flex items-center gap-4 border-b border-white/5">
         <button
-          onClick={() => tracks.length > 0 && playTrack(tracks[0])}
+          onClick={() => tracks.length > 0 && playTrack(tracks[0], tracks)}
           disabled={tracks.length === 0}
           className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
         >
@@ -108,9 +116,9 @@ export const ArtistProfile = () => {
               return (
                 <div
                   key={track.id}
-                  onClick={() => isActive ? togglePause() : playTrack(track)}
+                  onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
-                    'grid grid-cols-[40px_1fr_80px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
+                    'grid grid-cols-[40px_1fr_80px_40px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
@@ -139,7 +147,24 @@ export const ArtistProfile = () => {
                     </div>
                   </div>
 
-                  <span className="text-xs text-text-dim font-mono text-right">{track.duration}</span>
+                  <span className="text-xs text-text-dim font-mono text-center">{track.duration}</span>
+
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                    className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                  >
+                    <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs?.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
+                  </button>
+
+                  <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                      className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                    {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                  </div>
                 </div>
               );
             })}

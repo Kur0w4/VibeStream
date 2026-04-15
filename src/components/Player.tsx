@@ -15,6 +15,7 @@ export const Player = () => {
     currentTrack, isPlaying, togglePause, volume, setVolume,
     progress, setProgress, duration, setDuration, setIsPlaying,
     isExpanded, setIsExpanded, queue, removeFromQueue, clearQueue, playNext, nextTrack,
+    prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat
   } = usePlayerStore();
 
   const ytPlayerRef = useRef<any>(null);
@@ -76,9 +77,15 @@ export const Player = () => {
             } else if (state === window.YT.PlayerState.PAUSED) {
               setIsPlaying(false); clearProgress();
             } else if (state === window.YT.PlayerState.ENDED) {
-              setIsPlaying(false); clearProgress(); setProgress(0);
-              // Auto-play next from queue
-              nextTrack();
+              const { repeatMode, nextTrack, setIsPlaying } = usePlayerStore.getState();
+              if (repeatMode === 'one') {
+                player.seekTo(0);
+                player.playVideo();
+              } else {
+                setIsPlaying(false); clearProgress(); setProgress(0);
+                // Auto-play next from queue or intelligent context
+                nextTrack();
+              }
             }
           },
           onError: (e: any) => {
@@ -197,13 +204,16 @@ export const Player = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-14">
-                  <button className="text-text-dim hover:text-white transition-all hover:scale-110"><Shuffle className="w-8 h-8" /></button>
-                  <button className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipBack className="w-10 h-10 fill-current" /></button>
+                  <button onClick={toggleShuffle} className={cn("transition-all hover:scale-110", isShuffle ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}><Shuffle className="w-8 h-8" /></button>
+                  <button onClick={prevTrack} className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipBack className="w-10 h-10 fill-current" /></button>
                   <button onClick={togglePause} className="w-28 h-28 bg-white text-bg-main rounded-[40px] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-accent/20">
                     {isPlaying ? <Pause className="w-12 h-12 fill-current" /> : <Play className="w-12 h-12 fill-current ml-2" />}
                   </button>
                   <button onClick={() => nextTrack()} className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipForward className="w-10 h-10 fill-current" /></button>
-                  <button className="text-text-dim hover:text-white transition-all hover:scale-110"><Repeat className="w-8 h-8" /></button>
+                  <button onClick={toggleRepeat} className={cn("transition-all hover:scale-110 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}>
+                    <Repeat className="w-8 h-8" />
+                    {repeatMode === 'one' && <span className="absolute -top-1 -right-1 text-[10px] font-black bg-bg-main rounded-full w-4 h-4 flex items-center justify-center">1</span>}
+                  </button>
                 </div>
 
                 {/* Queue preview in expanded view */}
@@ -304,13 +314,16 @@ export const Player = () => {
           {/* Center: controls + seek */}
           <div className="flex flex-col items-center gap-2.5 flex-1 max-w-2xl px-4">
             <div className="flex items-center gap-8">
-              <button className="text-text-dim hover:text-accent transition-all hover:scale-110 active:scale-90"><Shuffle className="w-4 h-4" /></button>
-              <button className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipBack className="w-5 h-5 fill-current" /></button>
+              <button onClick={toggleShuffle} className={cn("transition-all hover:scale-110 active:scale-90", isShuffle ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}><Shuffle className="w-4 h-4" /></button>
+              <button onClick={prevTrack} className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipBack className="w-5 h-5 fill-current" /></button>
               <button onClick={togglePause} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
                 {isPlaying ? <Pause className="text-bg-main w-6 h-6 fill-current" /> : <Play className="text-bg-main w-6 h-6 fill-current ml-1" />}
               </button>
               <button onClick={() => nextTrack()} className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipForward className="w-5 h-5 fill-current" /></button>
-              <button className="text-text-dim hover:text-accent transition-all hover:scale-110 active:scale-90"><Repeat className="w-4 h-4" /></button>
+              <button onClick={toggleRepeat} className={cn("transition-all hover:scale-110 active:scale-90 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}>
+                <Repeat className="w-4 h-4" />
+                {repeatMode === 'one' && <span className="absolute -top-1.5 -right-1.5 text-[8px] font-black bg-bg-main rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>}
+              </button>
             </div>
             <div className="flex items-center gap-4 w-full">
               <span className="text-[10px] text-text-dim w-10 text-right font-bold font-mono">{formatTime((progress || 0) * duration)}</span>

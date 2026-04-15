@@ -113,7 +113,7 @@ export const LikedSongs = () => {
               return (
                 <div
                   key={track.id}
-                  onClick={() => isActive ? togglePause() : playTrack(track)}
+                  onClick={() => isActive ? togglePause() : playTrack(track, filtered)}
                   className={cn(
                     'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isActive ? 'bg-rose-500/10 border border-rose-500/20' : 'hover:bg-white/5 border border-transparent'

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { searchTracks } from '../services/api';
-import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon } from 'lucide-react';
+import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon, Heart } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 export const PlaylistDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist, addTrackToPlaylist } = usePlayerStore();
+  const { user, playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist, addTrackToPlaylist, likedSongs, toggleLike } = usePlayerStore();
   const [mixTracks, setMixTracks] = useState<Track[]>([]);
   const [mixLoading, setMixLoading] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -41,13 +41,30 @@ export const PlaylistDetail = () => {
     : playlists.find((pl) => pl.id === id);
 
   useEffect(() => {
-    if (!isMix) return;
+    if (!isMix || !user) return;
     setMixLoading(true);
     fetch('/api/mix', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => { setMixTracks(Array.isArray(data) ? data : []); setMixLoading(false); })
       .catch(() => setMixLoading(false));
-  }, [isMix]);
+  }, [isMix, user]);
+
+  if (isMix && !user) {
+    return (
+      <div className="flex-1 flex items-center justify-center flex-col gap-6 bg-gradient-to-b from-bg-main to-black p-10">
+        <div className="w-24 h-24 bg-accent/10 border border-accent/20 rounded-[32px] flex items-center justify-center shadow-2xl">
+          <Zap className="w-12 h-12 text-accent" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-3xl font-black text-white tracking-tighter mb-2">Login Required</h2>
+          <p className="text-text-dim font-medium max-w-xs mx-auto">Please log in to unlock your personalized daily mix based on your listening habits.</p>
+        </div>
+        <button onClick={() => navigate('/library')} className="px-8 py-3 bg-accent text-black font-black text-sm rounded-2xl hover:scale-105 transition-all shadow-xl shadow-accent/20">
+          Go to Login
+        </button>
+      </div>
+    );
+  }
 
   if (!isMix && !playlist) {
     return (
@@ -62,11 +79,11 @@ export const PlaylistDetail = () => {
   const tracks = playlist?.tracks ?? [];
   const cover = isMix ? null : tracks[0]?.thumbnail;
 
-  const playAll = () => { if (tracks.length > 0) playTrack(tracks[0]); };
+  const playAll = () => { if (tracks.length > 0) playTrack(tracks[0], tracks); };
   const playShuffle = () => {
     if (tracks.length === 0) return;
     const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-    playTrack(shuffled[0]);
+    playTrack(shuffled[0], shuffled);
   };
 
   return (
@@ -126,6 +143,53 @@ export const PlaylistDetail = () => {
         </button>
       </div>
 
+      {/* Playlist Search area for adding new tracks (moved to top) */}
+      {!isMix && (
+        <div className="px-10 pt-8 pb-4">
+          <h3 className="text-xl font-black text-white mb-4">Let's find something for your playlist</h3>
+          <div className="relative max-w-md group mb-6">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
+            <input
+              type="text"
+              placeholder="Search for songs or episodes"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
+            />
+          </div>
+          
+          {isSearching ? (
+             <div className="py-4 flex justify-start pl-6"><Loader2 className="w-6 h-6 text-accent animate-spin" /></div>
+          ) : searchResults.length > 0 ? (
+            <div className="space-y-1 max-w-4xl mb-8 border-b border-white/5 pb-8">
+              {searchResults.slice(0, 5).map(track => {
+                 const isAdded = tracks.some(t => t.id === track.id);
+                 return (
+                   <div key={track.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 group border border-transparent transition-all">
+                     <div className="flex items-center gap-4 min-w-0 flex-1">
+                       <img src={track.thumbnail} className="w-10 h-10 rounded-xl object-cover shrink-0" alt="" />
+                       <div className="min-w-0 flex-1 pr-4">
+                         <p className="text-sm font-bold text-white truncate">{track.title}</p>
+                         <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
+                       </div>
+                     </div>
+                     <button
+                       onClick={() => !isAdded && addTrackToPlaylist(id!, track)}
+                       className={cn("px-5 py-2 rounded-full text-xs font-black border transition-all shrink-0", 
+                         isAdded ? "bg-white/5 border-white/10 text-white/40 cursor-default" : "border-white/20 hover:border-white hover:text-bg-main hover:bg-white text-white")}
+                     >
+                       {isAdded ? "Added" : "Add"}
+                     </button>
+                   </div>
+                 );
+              })}
+            </div>
+          ) : searchQuery ? (
+             <p className="text-text-dim text-sm py-4 italic mb-8">No results found for "{searchQuery}"</p>
+          ) : null}
+        </div>
+      )}
+
       {/* Track list */}
       <div className="px-10 py-4">
         {mixLoading ? (
@@ -150,12 +214,12 @@ export const PlaylistDetail = () => {
               return (
                 <div
                   key={track.id}
-                  onClick={() => isActive ? togglePause() : playTrack(track)}
+                  onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
                     'grid gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isMix
-                      ? 'grid-cols-[40px_1fr_80px_40px]'
-                      : 'grid-cols-[40px_1fr_80px_40px_40px]',
+                      ? 'grid-cols-[40px_1fr_80px_40px_40px]' // added heart
+                      : 'grid-cols-[40px_1fr_80px_40px_40px_40px]', // added heart
                     isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
@@ -186,7 +250,14 @@ export const PlaylistDetail = () => {
 
                   <span className="text-xs text-text-dim font-mono text-center">{track.duration}</span>
 
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                    className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                  >
+                    <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
+                  </button>
+
+                  <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                       className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
@@ -211,54 +282,6 @@ export const PlaylistDetail = () => {
         )}
       </div>
 
-      {/* Playlist Search area for adding new tracks */}
-      {!isMix && (
-        <div className="px-10 pb-16">
-          <div className="pt-8 border-t border-white/5">
-            <h3 className="text-xl font-black text-white mb-6">Let's find something for your playlist</h3>
-            <div className="relative max-w-md group mb-6">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
-              <input
-                type="text"
-                placeholder="Search for songs or episodes"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
-              />
-            </div>
-            
-            {isSearching ? (
-               <div className="py-10 flex justify-start pl-6"><Loader2 className="w-6 h-6 text-accent animate-spin" /></div>
-            ) : searchResults.length > 0 ? (
-              <div className="space-y-1 max-w-4xl">
-                {searchResults.slice(0, 10).map(track => {
-                   const isAdded = tracks.some(t => t.id === track.id);
-                   return (
-                     <div key={track.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 group border border-transparent transition-all">
-                       <div className="flex items-center gap-4 min-w-0 flex-1">
-                         <img src={track.thumbnail} className="w-10 h-10 rounded-xl object-cover shrink-0" alt="" />
-                         <div className="min-w-0 flex-1 pr-4">
-                           <p className="text-sm font-bold text-white truncate">{track.title}</p>
-                           <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
-                         </div>
-                       </div>
-                       <button
-                         onClick={() => !isAdded && addTrackToPlaylist(id!, track)}
-                         className={cn("px-5 py-2 rounded-full text-xs font-black border transition-all shrink-0", 
-                           isAdded ? "bg-white/5 border-white/10 text-white/40 cursor-default" : "border-white/20 hover:border-white hover:text-bg-main hover:bg-white text-white")}
-                       >
-                         {isAdded ? "Added" : "Add"}
-                       </button>
-                     </div>
-                   );
-                })}
-              </div>
-            ) : searchQuery ? (
-               <p className="text-text-dim text-sm py-4 italic">No results found for "{searchQuery}"</p>
-            ) : null}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
