@@ -67,11 +67,33 @@ export const Search = () => {
     likedSongs, toggleLike, listeningHistory, user,
   } = usePlayerStore();
 
-  // Initial trending load
+  const hasHistory = listeningHistory.length > 0;
+
+  // Initial trending load or dynamic mix based on history
   useEffect(() => {
     if (query) return;
     setLoading(true);
-    getTrendingTracks().then((d) => { setResults(d); setLoading(false); });
+
+    if (hasHistory) {
+      // Pick top 2 most recent distinct artists to form a dynamic search
+      const recentArtists = Array.from(new Set(listeningHistory.map(t => t.artist))).slice(0, 2);
+      const dynamicQuery = `${recentArtists.join(' ')} music`;
+      
+      searchTracks(dynamicQuery).then((d) => {
+        if (d.length > 0) {
+          setResults(d);
+          setLoading(false);
+        } else {
+          // fallback if search fails
+          getTrendingTracks().then((td) => { setResults(td); setLoading(false); });
+        }
+      }).catch(() => {
+        getTrendingTracks().then((d) => { setResults(d); setLoading(false); });
+      });
+    } else {
+      getTrendingTracks().then((d) => { setResults(d); setLoading(false); });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
   // Debounced search
@@ -236,7 +258,7 @@ export const Search = () => {
               <h2 className="text-2xl font-black text-white tracking-tight">
                 {query ? `Results for "${query}"` : 'Recommended for you'}
               </h2>
-              {!query && <p className="text-text-dim text-sm mt-0.5">Based on what's trending</p>}
+              {!query && <p className="text-text-dim text-sm mt-0.5">{hasHistory ? "Based on what you've been listening to" : "Based on what's trending"}</p>}
             </div>
           </div>
 

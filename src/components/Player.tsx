@@ -137,7 +137,7 @@ export const Player = () => {
           className={cn(
             'fixed z-[70] overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl ring-1 ring-white/10',
             isExpanded
-              ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] aspect-video rounded-[40px] shadow-[0_0_100px_rgba(0,245,255,0.15)]'
+              ? 'top-[8vh] left-1/2 -translate-x-1/2 w-full max-w-[800px] aspect-video rounded-[32px] shadow-[0_0_100px_rgba(0,245,255,0.15)]'
               : 'bottom-[20px] left-[32px] w-40 h-[90px] rounded-lg hover:scale-105'
           )}
           onClick={() => { if (currentTrack) setIsExpanded(true); }}
@@ -163,7 +163,7 @@ export const Player = () => {
             <div id={YT_DIV_ID} style={{ width: '100%', height: '100%' }} />
           </div>
           {!isExpanded && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/50 backdrop-blur-[1px]">
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/50 backdrop-blur-[1px]">
               <Maximize2 className="text-accent w-5 h-5" />
             </div>
           )}
@@ -175,18 +175,18 @@ export const Player = () => {
             <motion.div
               initial={{ opacity: 0, y: '10%' }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: '10%' }} transition={{ type: 'spring', damping: 30, stiffness: 200 }}
-              className="fixed inset-0 z-[60] bg-bg-main/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8 overflow-y-auto"
+              className="fixed inset-0 z-[60] bg-bg-main/95 backdrop-blur-2xl flex flex-col items-center pt-[8vh] pb-8 px-8 overflow-y-auto custom-scrollbar"
             >
               <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-bg-main pointer-events-none" />
               <button onClick={() => setIsExpanded(false)}
                 className="absolute top-8 left-8 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 text-white z-50 transition-all hover:scale-105">
                 <ChevronDown className="w-8 h-8" />
               </button>
-              <div className="w-full max-w-[1000px] aspect-video invisible" />
-              <div className="mt-12 text-center max-w-[1000px] w-full px-8 relative z-50">
-                <h2 className="text-5xl font-black text-white tracking-tighter mb-3 truncate">{currentTrack.title}</h2>
-                <p className="text-2xl text-accent font-bold mb-12 truncate">{currentTrack.artist}</p>
-                <div className="flex flex-col gap-4 mb-16">
+              <div className="w-full max-w-[800px] aspect-video shrink-0 invisible" />
+              <div className="mt-8 text-center max-w-[800px] w-full px-8 relative z-50">
+                <h2 className="text-4xl font-black text-white tracking-tighter mb-2 truncate">{currentTrack.title}</h2>
+                <p className="text-xl text-accent font-bold mb-8 truncate">{currentTrack.artist}</p>
+                <div className="flex flex-col gap-3 mb-10">
                   <div className="flex justify-between items-center text-sm font-mono font-bold text-text-dim px-2">
                     <span>{formatTime((progress || 0) * duration)}</span>
                     <span>{formatTime(duration)}</span>

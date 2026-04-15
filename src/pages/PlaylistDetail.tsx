@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic } from 'lucide-react';
+import { searchTracks } from '../services/api';
+import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
@@ -8,10 +9,24 @@ import { cn } from '../lib/utils';
 export const PlaylistDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist } = usePlayerStore();
+  const { playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist, addTrackToPlaylist } = usePlayerStore();
   const [mixTracks, setMixTracks] = useState<Track[]>([]);
   const [mixLoading, setMixLoading] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      setIsSearching(true);
+      try { setSearchResults(await searchTracks(searchQuery)); }
+      catch {} finally { setIsSearching(false); }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   React.useEffect(() => {
     const h = () => setActiveDropdown(null);
@@ -125,7 +140,7 @@ export const PlaylistDetail = () => {
               {isMix ? 'Listen to some music first to generate your mix' : 'No songs in this playlist yet'}
             </p>
             {!isMix && (
-              <p className="text-sm mt-1">Search for songs and add them here</p>
+              <p className="text-sm mt-1">Search for songs below and add them here</p>
             )}
           </div>
         ) : (
@@ -195,6 +210,55 @@ export const PlaylistDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Playlist Search area for adding new tracks */}
+      {!isMix && (
+        <div className="px-10 pb-16">
+          <div className="pt-8 border-t border-white/5">
+            <h3 className="text-xl font-black text-white mb-6">Let's find something for your playlist</h3>
+            <div className="relative max-w-md group mb-6">
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
+              <input
+                type="text"
+                placeholder="Search for songs or episodes"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
+              />
+            </div>
+            
+            {isSearching ? (
+               <div className="py-10 flex justify-start pl-6"><Loader2 className="w-6 h-6 text-accent animate-spin" /></div>
+            ) : searchResults.length > 0 ? (
+              <div className="space-y-1 max-w-4xl">
+                {searchResults.slice(0, 10).map(track => {
+                   const isAdded = tracks.some(t => t.id === track.id);
+                   return (
+                     <div key={track.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 group border border-transparent transition-all">
+                       <div className="flex items-center gap-4 min-w-0 flex-1">
+                         <img src={track.thumbnail} className="w-10 h-10 rounded-xl object-cover shrink-0" alt="" />
+                         <div className="min-w-0 flex-1 pr-4">
+                           <p className="text-sm font-bold text-white truncate">{track.title}</p>
+                           <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
+                         </div>
+                       </div>
+                       <button
+                         onClick={() => !isAdded && addTrackToPlaylist(id!, track)}
+                         className={cn("px-5 py-2 rounded-full text-xs font-black border transition-all shrink-0", 
+                           isAdded ? "bg-white/5 border-white/10 text-white/40 cursor-default" : "border-white/20 hover:border-white hover:text-bg-main hover:bg-white text-white")}
+                       >
+                         {isAdded ? "Added" : "Add"}
+                       </button>
+                     </div>
+                   );
+                })}
+              </div>
+            ) : searchQuery ? (
+               <p className="text-text-dim text-sm py-4 italic">No results found for "{searchQuery}"</p>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
