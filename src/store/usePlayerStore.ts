@@ -93,7 +93,8 @@ async function apiFetch(url: string, opts?: RequestInit) {
   if (auth.currentUser) {
     const token = await auth.currentUser.getIdToken();
     headers['Authorization'] = `Bearer ${token}`;
-    console.log(`[apiFetch] Including Bearer token for ${auth.currentUser.email}`);
+    const checksum = token.substring(token.length - 8);
+    console.log(`[apiFetch] Including Bearer token (..${checksum}) for ${auth.currentUser.email}`);
   } else {
     console.log(`[apiFetch] No currentUser for ${url}`);
   }

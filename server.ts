@@ -234,11 +234,19 @@ async function startServer() {
 
   // Debug Session
   app.get("/api/debug/session", (req: any, res: any) => {
+    let userCount = 0;
+    try {
+      const row = db.prepare("SELECT COUNT(*) as count FROM users").get() as any;
+      userCount = row.count;
+    } catch {}
+
     res.json({
       sessionID: req.sessionID,
       userId: req.session.userId,
       username: req.session.username,
       email: req.session.email,
+      lastAuthError: req.session.lastAuthError || null,
+      dbUserCount: userCount,
       headers: {
         cookie: !!req.headers.cookie,
         authorization: !!req.headers.authorization
@@ -258,37 +266,47 @@ async function startServer() {
       // For now, if the session is empty but valid token is provided, we'll try to identify.
       if (token && token.includes('.')) {
         try {
-          const base64Payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-          const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
-          
-          if (payload && (payload.user_id || payload.sub)) {
-            const fUid = payload.user_id || payload.sub;
-            const email = payload.email || '';
-            const name = payload.name || email.split('@')[0] || 'User';
-
-            console.log(`[Auth] Decoding token for: ${email || fUid}`);
-
-            // Find or create normalized user in local SQL
-            let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            let base64Body = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            while (base64Body.length % 4) base64Body += '=';
+            const payload = JSON.parse(Buffer.from(base64Body, 'base64').toString());
             
-            if (!user) {
-              const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
-              user = { id: info.lastInsertRowid, username: name, email };
-              console.log(`[Auth] Created new user: ${user.id}`);
-            } else if (!user.firebase_uid) {
-              db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
+            if (payload && (payload.user_id || payload.sub)) {
+              const fUid = payload.user_id || payload.sub;
+              const email = payload.email || '';
+              const name = payload.name || email.split('@')[0] || 'User';
+
+              console.log(`[Auth] Identified token for: ${email || fUid}`);
+
+              // Find or create normalized user in local SQL
+              let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
+              
+              if (!user) {
+                console.log(`[Auth] Creating new user for ${email || fUid}`);
+                const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
+                user = { id: info.lastInsertRowid, username: name, email };
+              } else if (!user.firebase_uid) {
+                db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
+              }
+
+              req.session.userId = user.id;
+              req.session.username = user.username;
+              req.session.email = user.email;
+              req.session.lastAuthError = null;
+
+              // Force session save for async middleware
+              await new Promise((resolve) => req.session.save(resolve));
+              console.log(`[Auth] Session persisted for user ${user.id}`);
+            } else {
+              req.session.lastAuthError = "Invalid payload: missing sub/user_id";
             }
-
-            req.session.userId = user.id;
-            req.session.username = user.username;
-            req.session.email = user.email;
-
-            // Force session save for async middleware
-            await new Promise((resolve) => req.session.save(resolve));
-            console.log(`[Auth] Session established for user ${user.id}`);
+          } else {
+            req.session.lastAuthError = "Invalid token format (not 3 parts)";
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("[Auth] Token decoding error:", e);
+          req.session.lastAuthError = `Decoding error: ${e.message}`;
         }
       }
     }
