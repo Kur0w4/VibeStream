@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Music2, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { usePlayerStore } from '../store/usePlayerStore';
+import { usePlayerStore, API_BASE_URL } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,7 +29,7 @@ export const Auth = () => {
     setError('');
     setLoading(true);
     try {
-      const url = tab === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const url = tab === 'login' ? `${API_BASE_URL}/api/auth/login` : `${API_BASE_URL}/api/auth/register`;
       const res = await fetch(url, {
         method: 'POST',
         credentials: 'include',

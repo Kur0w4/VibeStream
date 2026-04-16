@@ -82,8 +82,12 @@ interface PlayerState {
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 async function apiFetch(url: string, opts?: RequestInit) {
-  const r = await fetch(url, { credentials: 'include', ...opts });
+  // If url is relative like "/api/...", prepending API_BASE_URL
+  const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+  const r = await fetch(finalUrl, { credentials: 'include', ...opts });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -269,7 +273,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       updateUsername: async (username: string) => {
         try {
-          const res = await fetch('/api/auth/me', {
+          const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
             method: 'PATCH',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -287,7 +291,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
       logout: async () => {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
         set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
       },
       initAuth: async () => {

@@ -1,8 +1,8 @@
-import { Track } from '../store/usePlayerStore';
+import { Track, API_BASE_URL } from '../store/usePlayerStore';
 
 export const searchTracks = async (query: string): Promise<Track[]> => {
   try {
-    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error('Search failed');
     return await response.json();
   } catch (error) {
@@ -13,7 +13,7 @@ export const searchTracks = async (query: string): Promise<Track[]> => {
 
 export const getTrendingTracks = async (): Promise<Track[]> => {
   try {
-    const response = await fetch('/api/search');
+    const response = await fetch(`${API_BASE_URL}/api/search`);
     if (!response.ok) throw new Error('Failed to fetch trending');
     return await response.json();
   } catch (error) {

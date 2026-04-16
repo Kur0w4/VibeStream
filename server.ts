@@ -6,6 +6,7 @@ import { search } from "youtube-search-without-api-key";
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import session from "express-session";
+import cors from "cors";
 // import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -178,7 +179,14 @@ async function youtubeSearch(query: string, limit = 50) {
 // ─── Server ────────────────────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Security & Connectivity
+  app.set("trust proxy", 1); 
+  app.use(cors({
+    origin: true, // Allows all origins temporarily; restricted to your domain in production
+    credentials: true
+  }));
 
   app.use(express.json());
   app.use(
@@ -186,9 +194,16 @@ async function startServer() {
       secret: "vibestream-secret-2024",
       resave: false,
       saveUninitialized: false,
-      cookie: { secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days
+      cookie: { 
+        secure: process.env.NODE_ENV === "production", 
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+      },
     })
   );
+
+  // Health Check
+  app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
 
   // ── Auth Middleware ──────────────────────────────────────────────────────────
   function requireAuth(req: any, res: any, next: any) {
@@ -453,17 +468,13 @@ async function startServer() {
     }
   });
 
-  // ── Vite / Static ────────────────────────────────────────────────────────────
+  // ── Vite / Dev Server ───────────────────────────────────────────────────────
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (_req: any, res: any) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
