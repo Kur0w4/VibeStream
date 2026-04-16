@@ -89,6 +89,21 @@ db.exec(`
   );
 `);
 
+// ─── Manual Migrations (Ensure existing DBs have the new columns) ───────────────
+try {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT UNIQUE;");
+} catch (e) {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;");
+} catch (e) {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
+} catch (e) {}
+try {
+  // Relaxing the NOT NULL for password_hash if it already existed but might be empty for Google users
+  // Note: SQLite doesn't support ALTER TABLE DROP NOT NULL cleanly, so we'll just handle it in app logic or re-create if needed.
+} catch (e) {}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function cleanTitle(title: string) {
   if (!title) return "Unknown Song";
@@ -195,10 +210,9 @@ async function startServer() {
   // Security & Connectivity
   app.set("trust proxy", 1); 
   app.use(cors({
-    origin: true, // Allows all origins temporarily; restricted to your domain in production
+    origin: true,
     credentials: true
   }));
-
   app.use(express.json());
   app.use(
     session({
@@ -206,10 +220,11 @@ async function startServer() {
       secret: "vibestream-secret-2024",
       resave: false,
       saveUninitialized: false,
+      proxy: true, // Required for secure cookies on Render/behind proxy
       cookie: { 
-        secure: process.env.NODE_ENV === "production", 
+        secure: true, // Always true for cross-domain SameSite=None
         maxAge: 7 * 24 * 60 * 60 * 1000,
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+        sameSite: "none" // Required for cross-domain cookies (web.app -> onrender.com)
       },
     })
   );

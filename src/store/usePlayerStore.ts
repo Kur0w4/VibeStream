@@ -308,13 +308,26 @@ export const usePlayerStore = create<PlayerState>()(
         set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
       },
       initAuth: async () => {
-        try {
-          const user = await apiFetch('/api/auth/me');
-          if (user) {
-            set({ user });
-            await get().syncFromServer();
-          }
-        } catch {}
+        const { auth } = await import('../lib/firebase');
+        
+        // Wait for Firebase to finish its initial auth state check
+        await new Promise<void>((resolve) => {
+          const unsubscribe = auth.onAuthStateChanged(async (fUser) => {
+            unsubscribe();
+            if (fUser) {
+              try {
+                const user = await apiFetch('/api/auth/me');
+                if (user) {
+                  set({ user });
+                  await get().syncFromServer();
+                }
+              } catch (err) {
+                console.error('[Auth] initAuth failed to sync:', err);
+              }
+            }
+            resolve();
+          });
+        });
       },
       syncFromServer: async () => {
         const { user } = get();

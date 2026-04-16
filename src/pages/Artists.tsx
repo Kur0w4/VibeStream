@@ -47,6 +47,8 @@ export const Artists = () => {
 
   const ArtistCard = ({ artist }: { artist: Artist }) => {
     const followed = isFollowed(artist.name);
+    const [isProcessing, setIsProcessing] = useState(false);
+
     return (
       <div
         onClick={() => navigate(`/artists/${encodeURIComponent(artist.name)}`)}
@@ -65,15 +67,31 @@ export const Artists = () => {
         <h3 className="text-sm font-black text-white group-hover:text-accent transition-colors line-clamp-2 mb-3 min-h-[2.5rem]">{artist.name}</h3>
 
         <button
-          onClick={(e) => { e.stopPropagation(); followed ? unfollowArtist(artist.name) : followArtist(artist); }}
+          onClick={async (e) => { 
+            e.stopPropagation(); 
+            setIsProcessing(true);
+            try {
+              followed ? await unfollowArtist(artist.name) : await followArtist(artist);
+            } finally {
+              setIsProcessing(false);
+            }
+          }}
+          disabled={isProcessing}
           className={cn(
             'w-full py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 border',
+            isProcessing ? "opacity-50 cursor-wait" : 
             followed
               ? 'bg-accent/10 border-accent/30 text-accent hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400'
               : 'bg-white/5 border-white/10 text-white hover:bg-white hover:text-bg-main'
           )}
         >
-          {followed ? <><UserCheck className="w-3 h-3" />Following</> : <><UserPlus className="w-3 h-3" />Follow</>}
+          {isProcessing ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : followed ? (
+            <><UserCheck className="w-3 h-3" />Following</>
+          ) : (
+            <><UserPlus className="w-3 h-3" />Follow</>
+          )}
         </button>
       </div>
     );
