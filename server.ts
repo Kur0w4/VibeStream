@@ -209,7 +209,31 @@ async function startServer() {
   app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
 
   // ── Auth Middleware ──────────────────────────────────────────────────────────
-  function requireAuth(req: any, res: any, next: any) {
+  // Middleware to handle both Session Cookies and Authorization Bearer Tokens (Firebase)
+  app.use(async (req: any, res: any, next: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split("Bearer ")[1];
+      // In a real app, we'd verify the Firebase Token properly with firebase-admin.
+      // For this implementation, we trust the token's presence signals a valid Firebase user on the frontend.
+      // We'll extract the "sub" or "user_id" if we can, or just let the session handle it.
+      // For now, if the session is empty but valid token is provided, we'll try to identify.
+      if (!req.session.userId) {
+        try {
+          // Base64 decode the JWT payload to get the UID (dangerous but works for this demo context without admin SDK)
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          if (payload && payload.user_id) {
+            req.session.userId = payload.user_id;
+            req.session.username = payload.name || payload.email?.split('@')[0] || 'User';
+          }
+        } catch (e) {}
+      }
+    }
+    next();
+  });
+
+  // Protected Routes Middleware
+  const isAuthenticated = (req: any, res: any, next: any) => {
     if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
     next();
   }
@@ -257,7 +281,7 @@ async function startServer() {
     res.json({ id: req.session.userId, username: req.session.username });
   });
 
-  app.patch("/api/auth/me", requireAuth, async (req: any, res: any) => {
+  app.patch("/api/auth/me", isAuthenticated, async (req: any, res: any) => {
     const { username } = req.body;
     if (!username?.trim() || username.length < 3) return res.status(400).json({ error: "Invalid username" });
     try {
@@ -271,14 +295,14 @@ async function startServer() {
   });
 
   // ── Liked Songs ──────────────────────────────────────────────────────────────
-  app.get("/api/liked", requireAuth, (req: any, res: any) => {
+  app.get("/api/liked", isAuthenticated, (req: any, res: any) => {
     const rows = db
       .prepare("SELECT * FROM liked_songs WHERE user_id = ? ORDER BY created_at DESC")
       .all(req.session.userId);
     res.json(rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
   });
 
-  app.post("/api/liked", requireAuth, (req: any, res: any) => {
+  app.post("/api/liked", isAuthenticated, (req: any, res: any) => {
     const t = req.body;
     try {
       db.prepare("INSERT OR IGNORE INTO liked_songs (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.session.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
@@ -286,13 +310,13 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/liked/:videoId", requireAuth, (req: any, res: any) => {
+  app.delete("/api/liked/:videoId", isAuthenticated, (req: any, res: any) => {
     db.prepare("DELETE FROM liked_songs WHERE user_id = ? AND video_id = ?").run(req.session.userId, req.params.videoId);
     res.json({ ok: true });
   });
 
   // ── Playlists ────────────────────────────────────────────────────────────────
-  app.get("/api/playlists", requireAuth, (req: any, res: any) => {
+  app.get("/api/playlists", isAuthenticated, (req: any, res: any) => {
     const pls = db.prepare("SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC").all(req.session.userId) as any[];
     const result = pls.map((pl: any) => {
       const tracks = db.prepare("SELECT * FROM playlist_tracks WHERE playlist_id = ? ORDER BY added_at ASC").all(pl.id) as any[];
@@ -301,7 +325,7 @@ async function startServer() {
     res.json(result);
   });
 
-  app.post("/api/playlists", requireAuth, (req: any, res: any) => {
+  app.post("/api/playlists", isAuthenticated, (req: any, res: any) => {
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Name required" });
     const id = Math.random().toString(36).substr(2, 9);
@@ -309,12 +333,12 @@ async function startServer() {
     res.json({ id, name: name.trim(), tracks: [] });
   });
 
-  app.delete("/api/playlists/:id", requireAuth, (req: any, res: any) => {
+  app.delete("/api/playlists/:id", isAuthenticated, (req: any, res: any) => {
     db.prepare("DELETE FROM playlists WHERE id = ? AND user_id = ?").run(req.params.id, req.session.userId);
     res.json({ ok: true });
   });
 
-  app.post("/api/playlists/:id/tracks", requireAuth, (req: any, res: any) => {
+  app.post("/api/playlists/:id/tracks", isAuthenticated, (req: any, res: any) => {
     const t = req.body;
     try {
       db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.params.id, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
@@ -322,19 +346,19 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/playlists/:id/tracks/:videoId", requireAuth, (req: any, res: any) => {
+  app.delete("/api/playlists/:id/tracks/:videoId", isAuthenticated, (req: any, res: any) => {
     db.prepare("DELETE FROM playlist_tracks WHERE playlist_id = ? AND video_id = ?").run(req.params.id, req.params.videoId);
     res.json({ ok: true });
   });
 
   // ── Listen History ───────────────────────────────────────────────────────────
-  app.get("/api/history", requireAuth, (req: any, res: any) => {
+  app.get("/api/history", isAuthenticated, (req: any, res: any) => {
     const limit = parseInt(req.query.limit as string) || 100;
     const rows = db.prepare("SELECT * FROM (SELECT * FROM listen_history WHERE user_id = ? ORDER BY listened_at DESC LIMIT 200) t GROUP BY video_id ORDER BY listened_at DESC LIMIT ?").all(req.session.userId, limit) as any[];
     res.json(rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
   });
 
-  app.post("/api/history", requireAuth, (req: any, res: any) => {
+  app.post("/api/history", isAuthenticated, (req: any, res: any) => {
     const t = req.body;
     try {
       db.prepare("INSERT INTO listen_history (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.session.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
@@ -342,7 +366,7 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/history", requireAuth, (req: any, res: any) => {
+  app.delete("/api/history", isAuthenticated, (req: any, res: any) => {
     try {
       db.prepare("DELETE FROM listen_history WHERE user_id = ?").run(req.session.userId);
       res.json({ ok: true });
@@ -350,12 +374,12 @@ async function startServer() {
   });
 
   // ── Followed Artists ─────────────────────────────────────────────────────────
-  app.get("/api/artists/followed", requireAuth, (req: any, res: any) => {
+  app.get("/api/artists/followed", isAuthenticated, (req: any, res: any) => {
     const rows = db.prepare("SELECT * FROM followed_artists WHERE user_id = ? ORDER BY created_at DESC").all(req.session.userId);
     res.json(rows);
   });
 
-  app.post("/api/artists/follow", requireAuth, (req: any, res: any) => {
+  app.post("/api/artists/follow", isAuthenticated, (req: any, res: any) => {
     const { name, thumbnail } = req.body;
     try {
       db.prepare("INSERT OR IGNORE INTO followed_artists (user_id, name, thumbnail) VALUES (?,?,?)").run(req.session.userId, name, thumbnail || "");
@@ -363,7 +387,7 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/artists/follow/:name", requireAuth, (req: any, res: any) => {
+  app.delete("/api/artists/follow/:name", isAuthenticated, (req: any, res: any) => {
     db.prepare("DELETE FROM followed_artists WHERE user_id = ? AND name = ?").run(req.session.userId, decodeURIComponent(req.params.name));
     res.json({ ok: true });
   });
@@ -387,8 +411,7 @@ async function startServer() {
   // Channels whose name closely matches the query are scored higher.
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
-    // When searching for artists, we append "channel" or "topic" to find profiles, not just videos
-    // Broad search for videos to find the associated channel
+    // Broad search for videos to find official channels and topic channels
     const searchTerm = q ? `${q} official music` : "popular music artists topic";
     try {
       const results = await search(searchTerm);

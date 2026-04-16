@@ -3,7 +3,7 @@ import { Track, API_BASE_URL } from '../store/usePlayerStore';
 /** Search for songs/tracks */
 export const searchTracks = async (query: string): Promise<Track[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&_t=${Date.now()}`);
     if (!response.ok) throw new Error('Search failed');
     return await response.json();
   } catch (error) {
@@ -15,7 +15,7 @@ export const searchTracks = async (query: string): Promise<Track[]> => {
 /** Fetch trending songs (empty query search) */
 export const getTrendingTracks = async (): Promise<Track[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search`);
+    const response = await fetch(`${API_BASE_URL}/api/search?_t=${Date.now()}`);
     if (!response.ok) throw new Error('Failed to fetch trending');
     return await response.json();
   } catch (error) {
