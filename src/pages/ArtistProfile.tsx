@@ -17,6 +17,7 @@ export const ArtistProfile = () => {
   const [loading, setLoading] = useState(true);
   const [thumbnail, setThumbnail] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Track[]>([]);
@@ -125,19 +126,32 @@ export const ArtistProfile = () => {
         </button>
 
         <button
-          onClick={() => {
+          onClick={async () => {
             const artist = { name: artistName, thumbnail };
-            isFollowed ? unfollowArtist(artistName) : followArtist(artist);
+            setIsFollowing(true);
+            try {
+              isFollowed ? await unfollowArtist(artistName) : await followArtist(artist);
+            } finally {
+              setIsFollowing(false);
+            }
           }}
+          disabled={isFollowing}
           className={cn(
             'flex items-center gap-2 px-5 md:px-6 py-2.5 md:py-3 rounded-2xl text-[13px] md:text-sm font-bold border transition-all',
             isFollowed
               ? 'bg-accent/10 border-accent/30 text-accent hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400'
-              : 'bg-white/5 border-white/10 text-white hover:bg-white hover:text-bg-main'
+              : 'bg-white/5 border-white/10 text-white hover:bg-white hover:text-bg-main',
+            isFollowing && "opacity-50 cursor-wait"
           )}
         >
-          {isFollowed ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-          {isFollowed ? 'Following' : 'Follow'}
+          {isFollowing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : isFollowed ? (
+            <UserCheck className="w-4 h-4" />
+          ) : (
+            <UserPlus className="w-4 h-4" />
+          )}
+          {isFollowing ? 'Processing...' : isFollowed ? 'Following' : 'Follow'}
         </button>
       </div>
 

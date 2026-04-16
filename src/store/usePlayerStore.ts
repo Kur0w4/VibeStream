@@ -96,13 +96,22 @@ async function apiFetch(url: string, opts?: RequestInit) {
   }
 
   const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
-  const r = await fetch(finalUrl, { 
-    credentials: 'include', 
-    ...opts,
-    headers
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
+  try {
+    const r = await fetch(finalUrl, { 
+      credentials: 'include', 
+      ...opts,
+      headers
+    });
+    if (!r.ok) {
+      const errorText = await r.text();
+      console.warn(`[apiFetch] ${opts?.method || 'GET'} ${url} failed (${r.status}):`, errorText);
+      throw new Error(errorText);
+    }
+    return r.json();
+  } catch (err) {
+    console.error(`[apiFetch] Request failed: ${url}`, err);
+    throw err;
+  }
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -318,12 +327,14 @@ export const usePlayerStore = create<PlayerState>()(
             apiFetch('/api/artists/followed'),
           ]);
           set({
-            likedSongs: liked,
-            playlists,
-            listeningHistory: history,
-            followedArtists: artists,
+            likedSongs: Array.isArray(liked) ? liked : [],
+            playlists: Array.isArray(playlists) ? playlists : [],
+            listeningHistory: Array.isArray(history) ? history : [],
+            followedArtists: Array.isArray(artists) ? artists : [],
           });
-        } catch {}
+        } catch (err) {
+          console.error('[Store] Sync from server failed:', err);
+        }
       },
 
       // ── Playlists ────────────────────────────────────────────────────────────

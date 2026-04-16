@@ -22,8 +22,10 @@ db.pragma("journal_mode = WAL");
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    username TEXT NOT NULL,
+    email TEXT UNIQUE,
+    password_hash TEXT,
+    firebase_uid TEXT UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -225,15 +227,31 @@ async function startServer() {
       // For this implementation, we trust the token's presence signals a valid Firebase user on the frontend.
       // We'll extract the "sub" or "user_id" if we can, or just let the session handle it.
       // For now, if the session is empty but valid token is provided, we'll try to identify.
-      if (!req.session.userId) {
+      if (token && token.includes('.')) {
         try {
-          // Base64 decode the JWT payload to get the UID (dangerous but works for this demo context without admin SDK)
           const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-          if (payload && payload.user_id) {
-            req.session.userId = payload.user_id;
-            req.session.username = payload.name || payload.email?.split('@')[0] || 'User';
+          if (payload && (payload.user_id || payload.sub)) {
+            const fUid = payload.user_id || payload.sub;
+            const email = payload.email || '';
+            const name = payload.name || email.split('@')[0] || 'User';
+
+            // Find or create normalized user in local SQL
+            let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
+            
+            if (!user) {
+              const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
+              user = { id: info.lastInsertRowid, username: name, email };
+            } else if (!user.firebase_uid) {
+              db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
+            }
+
+            req.session.userId = user.id;
+            req.session.username = user.username;
+            req.session.email = user.email;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error("[Auth] Token decoding error:", e);
+        }
       }
     }
     next();
