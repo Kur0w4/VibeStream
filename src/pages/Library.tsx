@@ -40,16 +40,16 @@ export const Library = () => {
   ];
 
   return (
-    <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
-      <div className="px-10 py-12">
-        <header className="flex items-center justify-between mb-12">
+    <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar pb-36 px-0">
+      <div className="px-6 md:px-10 py-10 md:py-12">
+        <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-12">
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tighter">Your Library</h1>
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter">Your Library</h1>
             <p className="text-text-dim text-sm mt-2 font-medium">Your personal music collection</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-accent text-black font-bold text-sm rounded-2xl hover:opacity-90 shadow-xl shadow-accent/20 transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 bg-accent text-black font-bold text-sm rounded-2xl hover:opacity-90 shadow-xl shadow-accent/20 transition-all hover:scale-105 active:scale-95 w-full md:w-auto justify-center"
           >
             <Plus className="w-4 h-4" /> Create Playlist
           </button>

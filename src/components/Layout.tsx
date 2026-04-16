@@ -28,7 +28,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       
       <main className="flex-1 flex flex-col relative overflow-hidden z-10 contain-paint">
         <TopBar />
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-32 md:pb-32 px-4 md:px-0 will-change-scroll">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-32 md:pb-32 px-0 will-change-scroll">
           {children}
         </div>
       </main>

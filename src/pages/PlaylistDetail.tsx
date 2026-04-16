@@ -87,9 +87,9 @@ export const PlaylistDetail = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36">
+    <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36 px-0 md:px-0">
       {/* Hero */}
-      <div className="relative px-10 py-12 flex items-end gap-8">
+      <div className="relative px-6 md:px-10 py-10 md:py-12 flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8">
         <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-bg-main pointer-events-none" />
         <button
           onClick={() => navigate('/playlists')}
@@ -100,7 +100,7 @@ export const PlaylistDetail = () => {
         </button>
 
         {/* Cover */}
-        <div className="w-52 h-52 rounded-[32px] overflow-hidden shadow-2xl shrink-0 relative z-10">
+        <div className="w-40 h-40 md:w-52 md:h-52 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-2xl shrink-0 relative z-10">
           {isMix ? (
             <div className="w-full h-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
               <Zap className="w-24 h-24 text-black/70" />
@@ -115,11 +115,11 @@ export const PlaylistDetail = () => {
         </div>
 
         {/* Info */}
-        <div className="relative z-10 pb-2">
+        <div className="relative z-10 pb-2 text-center md:text-left">
           <span className="text-[10px] font-black text-accent uppercase tracking-[0.3em]">
             {isMix ? 'Auto Mix' : 'Playlist'}
           </span>
-          <h1 className="text-5xl font-black text-white mt-2 tracking-tighter">{playlist?.name}</h1>
+          <h1 className="text-3xl md:text-5xl font-black text-white mt-1.5 tracking-tighter">{playlist?.name}</h1>
           <p className="text-text-dim text-sm mt-3 font-medium">
             {mixLoading ? 'Generating your mix...' : `${tracks.length} songs`}
           </p>
@@ -127,7 +127,7 @@ export const PlaylistDetail = () => {
       </div>
 
       {/* Controls */}
-      <div className="px-10 py-6 flex items-center gap-4 border-b border-white/5">
+      <div className="px-6 md:px-10 py-6 flex items-center gap-4 border-b border-white/5">
         <button
           onClick={playAll}
           disabled={tracks.length === 0}
@@ -148,13 +148,13 @@ export const PlaylistDetail = () => {
 
       {/* Playlist Search area for adding new tracks (moved to top) */}
       {!isMix && (
-        <div className="px-10 pt-8 pb-4">
+        <div className="px-6 md:px-10 pt-8 pb-4">
           <h3 className="text-xl font-black text-white mb-4">Let's find something for your playlist</h3>
           <div className="relative max-w-md group mb-6">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
             <input
               type="text"
-              placeholder="Search for songs or episodes"
+              placeholder="Search for songs"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               aria-label="Search for songs to add"
@@ -195,7 +195,7 @@ export const PlaylistDetail = () => {
       )}
 
       {/* Track list */}
-      <div className="px-10 py-4">
+      <div className="px-2 md:px-10 py-4 overflow-hidden">
         {mixLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -220,10 +220,10 @@ export const PlaylistDetail = () => {
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
-                    'grid gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
+                    'grid gap-2 md:gap-4 px-3 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isMix
-                      ? 'grid-cols-[40px_1fr_80px_40px_40px]' // added heart
-                      : 'grid-cols-[40px_1fr_80px_40px_40px_40px]', // added heart
+                      ? 'grid-cols-[40px_1fr_40px_40px] md:grid-cols-[40px_1fr_80px_40px_40px]' // Hidden duration on mobile
+                      : 'grid-cols-[40px_1fr_40px_40px] md:grid-cols-[40px_1fr_80px_40px_40px_40px]', 
                     isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
@@ -259,7 +259,7 @@ export const PlaylistDetail = () => {
                     </div>
                   </div>
 
-                  <span className="text-xs text-text-dim font-mono text-center">{track.duration}</span>
+                  <span className="text-xs text-text-dim font-mono text-center hidden md:block">{track.duration}</span>
 
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(track); }}

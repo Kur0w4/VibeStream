@@ -54,7 +54,7 @@ export const LikedSongs = () => {
         </div>
       </div>
 
-      <div className="px-10 py-6">
+      <div className="px-5 md:px-10 py-6">
         {/* Actions bar */}
         <div className="flex items-center gap-4 mb-8">
           <button
@@ -73,7 +73,7 @@ export const LikedSongs = () => {
           >
             <Shuffle className="w-6 h-6" />
           </button>
-          <button title="More actions" className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
+          <button title="More actions" className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all hidden md:block">
             <MoreHorizontal className="w-6 h-6" />
           </button>
 
@@ -91,12 +91,11 @@ export const LikedSongs = () => {
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
+        <div className="grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2 overflow-hidden">
           <span className="text-center">#</span>
           <span>Title</span>
           <span className="hidden md:block">Album</span>
           <span className="text-center hidden md:block"><Clock className="w-4 h-4 mx-auto" /></span>
-          <span />
         </div>
 
         {/* Track list */}
