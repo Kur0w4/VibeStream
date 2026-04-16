@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Home, Library, PlusSquare, Heart, Music2, TrendingUp, Mic2 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -6,14 +5,14 @@ import { cn } from '../lib/utils';
 const SidebarItem = ({ icon: Icon, label, to }: { icon: any; label: string; to: string }) => (
   <NavLink
     to={to}
-    className={({ isActive }) =>
+    className={({ isActive }: { isActive: boolean }) =>
       cn(
         'flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 rounded-lg group',
         isActive ? 'bg-glass text-text-main border border-glass-border' : 'text-text-dim hover:text-text-main hover:bg-glass'
       )
     }
   >
-    {({ isActive }) => (
+    {({ isActive }: { isActive: boolean }) => (
       <>
         <Icon className={cn('w-4 h-4', isActive ? 'text-accent' : 'group-hover:text-accent')} />
         <span className="font-medium text-sm">{label}</span>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ListMusic, Play, X, Zap, Trash2 } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Playlists = () => {
@@ -101,7 +100,7 @@ export const Playlists = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-bg-sidebar border border-white/10 rounded-[32px] p-8 w-full max-w-md relative shadow-2xl">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-text-dim hover:text-white hover:bg-white/10 rounded-full transition-all">
+            <button onClick={() => setIsModalOpen(false)} title="Close" className="absolute top-6 right-6 p-2 text-text-dim hover:text-white hover:bg-white/10 rounded-full transition-all">
               <X className="w-5 h-5" />
             </button>
             <h2 className="text-3xl font-black text-white mb-6">New Playlist</h2>
@@ -110,7 +109,7 @@ export const Playlists = () => {
                 type="text" value={newPlaylistName}
                 onChange={(e) => setNewPlaylistName(e.target.value)}
                 placeholder="My awesome playlist..."
-                autoFocus
+                autoFocus aria-label="Playlist name"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white outline-none focus:border-accent mb-8 transition-colors placeholder:text-text-dim/40"
               />
               <div className="flex justify-end gap-3">

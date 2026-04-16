@@ -5,7 +5,7 @@ import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const LikedSongs = () => {
-  const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, toggleLike, user } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, user } = usePlayerStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
@@ -60,6 +60,7 @@ export const LikedSongs = () => {
           <button
             onClick={playAll}
             disabled={likedSongs.length === 0}
+            title="Play all"
             className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
           >
             <Play className="w-7 h-7 fill-current ml-0.5" />
@@ -67,11 +68,12 @@ export const LikedSongs = () => {
           <button
             onClick={playShuffle}
             disabled={likedSongs.length === 0}
+            title="Shuffle play"
             className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all disabled:opacity-40"
           >
             <Shuffle className="w-6 h-6" />
           </button>
-          <button className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
+          <button title="More actions" className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
             <MoreHorizontal className="w-6 h-6" />
           </button>
 
@@ -112,7 +114,7 @@ export const LikedSongs = () => {
               const isActive = currentTrack?.id === track.id;
               return (
                 <div
-                  key={track.id}
+                  key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, filtered)}
                   className={cn(
                     'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
@@ -150,6 +152,7 @@ export const LikedSongs = () => {
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                      title="More options"
                       className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white"
                     >
                       <MoreHorizontal className="w-4 h-4" />

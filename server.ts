@@ -6,7 +6,7 @@ import { search } from "youtube-search-without-api-key";
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import fs from "fs";
+// import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

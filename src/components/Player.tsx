@@ -14,8 +14,8 @@ export const Player = () => {
   const {
     currentTrack, isPlaying, togglePause, volume, setVolume,
     progress, setProgress, duration, setDuration, setIsPlaying,
-    isExpanded, setIsExpanded, queue, removeFromQueue, clearQueue, playNext, nextTrack,
-    prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat
+    isExpanded, setIsExpanded, queue, removeFromQueue, clearQueue,
+    nextTrack, prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat
   } = usePlayerStore();
 
   const ytPlayerRef = useRef<any>(null);
@@ -24,6 +24,14 @@ export const Player = () => {
   const [playerError, setPlayerError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFirstLoad = useRef(true);
+  const isReadyRef = useRef(false);
+
+  // Sync isReady React state with Ref for interval access
+  const updateIsReady = useCallback((val: boolean) => {
+    isReadyRef.current = val;
+    setIsReady(val);
+  }, []);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -38,7 +46,8 @@ export const Player = () => {
     clearProgress();
     progressIntervalRef.current = setInterval(() => {
       const player = ytPlayerRef.current;
-      if (!player) return;
+      // Use Ref to check readiness inside interval to avoid stale closures
+      if (!player || !isReadyRef.current) return;
       try {
         const current: number = player.getCurrentTime?.() ?? 0;
         const total: number = player.getDuration?.() ?? 0;
@@ -72,10 +81,12 @@ export const Player = () => {
           onStateChange: (e: any) => {
             const state = e.data;
             if (state === window.YT.PlayerState.PLAYING) {
-              setIsReady(true); setPlayerError(false); setIsPlaying(true); startProgress();
+              updateIsReady(true); setPlayerError(false); setIsPlaying(true); startProgress();
               try { const dur = player.getDuration?.() ?? 0; if (dur > 0) setDuration(dur); } catch (_) {}
             } else if (state === window.YT.PlayerState.PAUSED) {
               setIsPlaying(false); clearProgress();
+            } else if (state === window.YT.PlayerState.CUED) {
+              updateIsReady(true);
             } else if (state === window.YT.PlayerState.ENDED) {
               const { repeatMode, nextTrack, setIsPlaying } = usePlayerStore.getState();
               if (repeatMode === 'one') {
@@ -90,7 +101,7 @@ export const Player = () => {
           },
           onError: (e: any) => {
             console.error('[YT] error:', e.data);
-            setPlayerError(true); setIsReady(false); setIsPlaying(false); clearProgress();
+            setPlayerError(true); updateIsReady(false); setIsPlaying(false); clearProgress();
           },
         },
       });
@@ -102,10 +113,27 @@ export const Player = () => {
 
   useEffect(() => {
     if (!currentTrack?.videoId) return;
-    setIsReady(false); setPlayerError(false); setProgress(0); clearProgress();
+    updateIsReady(false); setPlayerError(false);
+    
+    // Resume from persisted progress on first load, otherwise start at 0
+    let startSeconds = 0;
+    if (isFirstLoad.current) {
+      startSeconds = Math.floor((progress || 0) * (duration || 0));
+      isFirstLoad.current = false;
+    } else {
+      setProgress(0);
+    }
+    
+    clearProgress();
     const player = ytPlayerRef.current;
     if (!player) return;
-    try { player.loadVideoById({ videoId: currentTrack.videoId, startSeconds: 0 }); }
+    try { 
+      if (isPlaying) {
+        player.loadVideoById({ videoId: currentTrack.videoId, startSeconds }); 
+      } else {
+        player.cueVideoById({ videoId: currentTrack.videoId, startSeconds });
+      }
+    }
     catch (err) { console.error('[YT] loadVideoById error:', err); setPlayerError(true); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTrack?.videoId]);
@@ -142,10 +170,10 @@ export const Player = () => {
         {/* ══ YouTube Player container ══ */}
         <div
           className={cn(
-            'fixed z-[70] overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl ring-1 ring-white/10',
+            'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl ring-1 ring-white/10',
             isExpanded
-              ? 'top-[8vh] left-1/2 -translate-x-1/2 w-full max-w-[800px] aspect-video rounded-[32px] shadow-[0_0_100px_rgba(0,245,255,0.15)]'
-              : 'bottom-[20px] left-[32px] w-40 h-[90px] rounded-lg hover:scale-105'
+              ? 'top-[6vh] left-1/2 -translate-x-1/2 w-full max-w-[800px] max-h-[40vh] aspect-video rounded-3xl shadow-[0_0_80px_rgba(0,245,255,0.1)] z-[110]'
+              : 'bottom-[20px] left-[32px] w-40 h-[90px] rounded-lg hover:scale-105 z-[70]'
           )}
           onClick={() => { if (currentTrack) setIsExpanded(true); }}
         >
@@ -167,7 +195,7 @@ export const Player = () => {
             </div>
           )}
           <div className={cn('absolute inset-0 z-10 transition-opacity duration-500', isReady ? 'opacity-100' : 'opacity-0')}>
-            <div id={YT_DIV_ID} style={{ width: '100%', height: '100%' }} />
+            <div id={YT_DIV_ID} className="w-full h-full" />
           </div>
           {!isExpanded && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/50 backdrop-blur-[1px]">
@@ -182,56 +210,60 @@ export const Player = () => {
             <motion.div
               initial={{ opacity: 0, y: '10%' }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: '10%' }} transition={{ type: 'spring', damping: 30, stiffness: 200 }}
-              className="fixed inset-0 z-[60] bg-bg-main/95 backdrop-blur-2xl flex flex-col items-center pt-[8vh] pb-8 px-8 overflow-y-auto custom-scrollbar"
+              className="fixed inset-0 z-[100] bg-bg-main/95 backdrop-blur-2xl flex flex-col items-center pt-[6vh] pb-6 px-8 overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-bg-main pointer-events-none" />
-              <button onClick={() => setIsExpanded(false)}
-                className="absolute top-8 left-8 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 text-white z-50 transition-all hover:scale-105">
+              <button onClick={() => setIsExpanded(false)} title="Close expanded view"
+                className="fixed top-8 left-8 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 text-white z-[120] transition-all hover:scale-105">
                 <ChevronDown className="w-8 h-8" />
               </button>
-              <div className="w-full max-w-[800px] aspect-video shrink-0 invisible" />
-              <div className="mt-8 text-center max-w-[800px] w-full px-8 relative z-50">
-                <h2 className="text-4xl font-black text-white tracking-tighter mb-2 truncate">{currentTrack.title}</h2>
-                <p className="text-xl text-accent font-bold mb-8 truncate">{currentTrack.artist}</p>
-                <div className="flex flex-col gap-3 mb-10">
-                  <div className="flex justify-between items-center text-sm font-mono font-bold text-text-dim px-2">
+              <div className="w-full max-w-[800px] h-[40vh] max-h-[40vh] aspect-video shrink-0 invisible" />
+              <div className="mt-4 text-center max-w-[800px] w-full px-4 relative z-50 flex-1 flex flex-col min-h-0">
+                <div className="shrink-0 mb-3">
+                  <h2 className="text-2xl lg:text-4xl font-black text-white tracking-tighter mb-0.5 truncate">{currentTrack.title}</h2>
+                  <p className="text-base lg:text-xl text-accent font-bold truncate opacity-90">{currentTrack.artist}</p>
+                </div>
+
+                <div className="flex flex-col gap-1.5 mb-5 shrink-0">
+                  <div className="flex justify-between items-center text-[10px] lg:text-xs font-mono font-bold text-text-dim px-2">
                     <span>{formatTime((progress || 0) * duration)}</span>
                     <span>{formatTime(duration)}</span>
                   </div>
-                  <div className="h-2.5 w-full bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
+                  <div className="h-1.5 w-full bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
                     <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" style={{ width: `${(progress || 0) * 100}%` }} />
-                    <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                    <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
                   </div>
                 </div>
-                <div className="flex items-center justify-center gap-14">
-                  <button onClick={toggleShuffle} className={cn("transition-all hover:scale-110", isShuffle ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}><Shuffle className="w-8 h-8" /></button>
-                  <button onClick={prevTrack} className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipBack className="w-10 h-10 fill-current" /></button>
-                  <button onClick={togglePause} className="w-28 h-28 bg-white text-bg-main rounded-[40px] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-accent/20">
-                    {isPlaying ? <Pause className="w-12 h-12 fill-current" /> : <Play className="w-12 h-12 fill-current ml-2" />}
+
+                <div className="flex items-center justify-center gap-8 lg:gap-14 mb-6 lg:mb-8 shrink-0">
+                  <button onClick={toggleShuffle} title="Toggle Shuffle" className={cn("transition-all hover:scale-110", isShuffle ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}><Shuffle className="w-5 h-5 lg:w-8 lg:h-8" /></button>
+                  <button onClick={prevTrack} title="Previous Track" className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipBack className="w-7 h-7 lg:w-10 lg:h-10 fill-current" /></button>
+                  <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-16 h-16 lg:w-28 lg:h-28 bg-white text-bg-main rounded-[24px] lg:rounded-[40px] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-accent/20">
+                    {isPlaying ? <Pause className="w-8 h-8 lg:w-12 lg:h-12 fill-current" /> : <Play className="w-8 h-8 lg:w-12 lg:h-12 fill-current ml-2" />}
                   </button>
-                  <button onClick={() => nextTrack()} className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipForward className="w-10 h-10 fill-current" /></button>
-                  <button onClick={toggleRepeat} className={cn("transition-all hover:scale-110 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}>
-                    <Repeat className="w-8 h-8" />
+                  <button onClick={() => nextTrack()} title="Next Track" className="text-text-dim hover:text-white transition-all hover:scale-110"><SkipForward className="w-7 h-7 lg:w-10 lg:h-10 fill-current" /></button>
+                  <button onClick={toggleRepeat} title="Toggle Repeat" className={cn("transition-all hover:scale-110 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]" : "text-text-dim hover:text-white")}>
+                    <Repeat className="w-5 h-5 lg:w-8 lg:h-8" />
                     {repeatMode === 'one' && <span className="absolute -top-1 -right-1 text-[10px] font-black bg-bg-main rounded-full w-4 h-4 flex items-center justify-center">1</span>}
                   </button>
                 </div>
 
-                {/* Queue preview in expanded view */}
+                {/* Queue preview in expanded view - limited set to ensure visibility */}
                 {queue.length > 0 && (
-                  <div className="mt-16 text-left">
-                    <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                      <ListMusic className="w-5 h-5 text-accent" /> Next in queue ({queue.length})
+                  <div className="mt-4 text-left flex-1 min-h-0 flex flex-col opacity-60 hover:opacity-100 transition-opacity">
+                    <h3 className="text-sm font-black text-white mb-2 flex items-center gap-2 shrink-0">
+                      <ListMusic className="w-4 h-4 text-accent" /> Next in queue
                     </h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                      {queue.slice(0, 5).map((t, i) => (
-                        <div key={t.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 group">
-                          <img src={t.thumbnail} className="w-9 h-9 rounded-lg object-cover" alt="" />
+                    <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1 min-h-0 pr-2 pb-4">
+                      {queue.slice(0, 10).map((t, i) => (
+                        <div key={`${t.id}-${i}`} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 group border border-transparent hover:border-white/5 transition-all">
+                          <img src={t.thumbnail} className="w-8 h-8 rounded-lg object-cover" alt="" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-white truncate">{t.title}</p>
-                            <p className="text-xs text-text-dim truncate">{t.artist}</p>
+                            <p className="text-xs font-bold text-white truncate">{t.title}</p>
+                            <p className="text-[10px] text-text-dim truncate">{t.artist}</p>
                           </div>
-                          <button onClick={() => removeFromQueue(i)} className="opacity-0 group-hover:opacity-100 p-1 text-text-dim hover:text-red-400 transition-all">
-                            <X className="w-4 h-4" />
+                          <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-0 group-hover:opacity-100 p-1 text-text-dim hover:text-red-400 transition-all">
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
@@ -262,7 +294,7 @@ export const Player = () => {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
-                  <button onClick={() => setShowQueue(false)} className="p-2 text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                  <button onClick={() => setShowQueue(false)} title="Close queue" className="p-2 text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-all">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -285,7 +317,7 @@ export const Player = () => {
                           <p className="text-sm font-bold text-white truncate">{t.title}</p>
                           <p className="text-xs text-text-dim truncate">{t.artist}</p>
                         </div>
-                        <button onClick={() => removeFromQueue(i)} className="opacity-0 group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+                        <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-0 group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -314,13 +346,13 @@ export const Player = () => {
           {/* Center: controls + seek */}
           <div className="flex flex-col items-center gap-2.5 flex-1 max-w-2xl px-4">
             <div className="flex items-center gap-8">
-              <button onClick={toggleShuffle} className={cn("transition-all hover:scale-110 active:scale-90", isShuffle ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}><Shuffle className="w-4 h-4" /></button>
-              <button onClick={prevTrack} className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipBack className="w-5 h-5 fill-current" /></button>
-              <button onClick={togglePause} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
+              <button onClick={toggleShuffle} title="Toggle Shuffle" className={cn("transition-all hover:scale-110 active:scale-90", isShuffle ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}><Shuffle className="w-4 h-4" /></button>
+              <button onClick={prevTrack} title="Previous Track" className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipBack className="w-5 h-5 fill-current" /></button>
+              <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
                 {isPlaying ? <Pause className="text-bg-main w-6 h-6 fill-current" /> : <Play className="text-bg-main w-6 h-6 fill-current ml-1" />}
               </button>
-              <button onClick={() => nextTrack()} className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipForward className="w-5 h-5 fill-current" /></button>
-              <button onClick={toggleRepeat} className={cn("transition-all hover:scale-110 active:scale-90 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}>
+              <button onClick={() => nextTrack()} title="Next Track" className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipForward className="w-5 h-5 fill-current" /></button>
+              <button onClick={toggleRepeat} title="Toggle Repeat" className={cn("transition-all hover:scale-110 active:scale-90 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}>
                 <Repeat className="w-4 h-4" />
                 {repeatMode === 'one' && <span className="absolute -top-1.5 -right-1.5 text-[8px] font-black bg-bg-main rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>}
               </button>
@@ -329,7 +361,7 @@ export const Player = () => {
               <span className="text-[10px] text-text-dim w-10 text-right font-bold font-mono">{formatTime((progress || 0) * duration)}</span>
               <div className="flex-1 h-1.5 bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
                 <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" style={{ width: `${(progress || 0) * 100}%` }} />
-                <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
               </div>
               <span className="text-[10px] text-text-dim w-10 font-bold font-mono">{formatTime(duration)}</span>
             </div>
@@ -358,10 +390,11 @@ export const Player = () => {
                 <div className="absolute top-0 left-0 h-full bg-text-main rounded-full" style={{ width: `${(isMuted ? 0 : volume) * 100}%` }} />
                 <input type="range" min={0} max={1} step="any" value={isMuted ? 0 : volume}
                   onChange={(e) => { setVolume(parseFloat(e.target.value)); if (isMuted) setIsMuted(false); }}
+                  aria-label="Volume" title="Adjust volume"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               </div>
             </div>
-            <button onClick={() => setIsExpanded(true)} className="text-text-dim hover:text-accent transition-all hover:scale-110">
+            <button onClick={() => setIsExpanded(true)} title="Expand player" className="text-text-dim hover:text-accent transition-all hover:scale-110">
               <Maximize2 className="w-4 h-4" />
             </button>
           </div>

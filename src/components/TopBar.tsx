@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { User, LogIn, LogOut, Settings, Trash2, History } from 'lucide-react';
+import { User, LogOut, Settings, Trash2, History } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { AuthModal } from './AuthModal';
-import { cn } from '../lib/utils';
 
 export const TopBar = () => {
   const { user, logout, clearQueue } = usePlayerStore();

@@ -21,6 +21,9 @@
       ]
     },
     "allowImportingTsExtensions": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true
-  }
+  },
+  "include": ["src", "server.ts", "vite.config.ts"]
 }

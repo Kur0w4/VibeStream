@@ -93,6 +93,7 @@ export const PlaylistDetail = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-bg-main pointer-events-none" />
         <button
           onClick={() => navigate('/playlists')}
+          title="Back to playlists"
           className="absolute top-6 left-6 p-2.5 bg-white/10 hover:bg-white/20 rounded-full transition-all text-white z-10"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -130,6 +131,7 @@ export const PlaylistDetail = () => {
         <button
           onClick={playAll}
           disabled={tracks.length === 0}
+          title="Play all"
           className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
         >
           <Play className="w-7 h-7 fill-current ml-0.5" />
@@ -137,6 +139,7 @@ export const PlaylistDetail = () => {
         <button
           onClick={playShuffle}
           disabled={tracks.length === 0}
+          title="Shuffle play"
           className="p-3 text-text-dim hover:text-white hover:bg-white/5 rounded-full transition-all disabled:opacity-40"
         >
           <Shuffle className="w-6 h-6" />
@@ -154,6 +157,7 @@ export const PlaylistDetail = () => {
               placeholder="Search for songs or episodes"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search for songs to add"
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
             />
           </div>
@@ -162,10 +166,10 @@ export const PlaylistDetail = () => {
              <div className="py-4 flex justify-start pl-6"><Loader2 className="w-6 h-6 text-accent animate-spin" /></div>
           ) : searchResults.length > 0 ? (
             <div className="space-y-1 max-w-4xl mb-8 border-b border-white/5 pb-8">
-              {searchResults.slice(0, 5).map(track => {
+              {searchResults.slice(0, 5).map((track, index) => {
                  const isAdded = tracks.some(t => t.id === track.id);
                  return (
-                   <div key={track.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 group border border-transparent transition-all">
+                   <div key={`${track.id}-${index}`} className="flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 group border border-transparent transition-all">
                      <div className="flex items-center gap-4 min-w-0 flex-1">
                        <img src={track.thumbnail} className="w-10 h-10 rounded-xl object-cover shrink-0" alt="" />
                        <div className="min-w-0 flex-1 pr-4">
@@ -213,7 +217,7 @@ export const PlaylistDetail = () => {
               const isActive = currentTrack?.id === track.id;
               return (
                 <div
-                  key={track.id}
+                  key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
                     'grid gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
@@ -252,6 +256,7 @@ export const PlaylistDetail = () => {
 
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                    title={likedSongs.some(t => t.id === track.id) ? "Unlike" : "Like"}
                     className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
                   >
                     <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
@@ -260,6 +265,7 @@ export const PlaylistDetail = () => {
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                      title="More options"
                       className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                     >
                       <MoreHorizontal className="w-4 h-4" />
@@ -270,6 +276,7 @@ export const PlaylistDetail = () => {
                   {!isMix && (
                     <button
                       onClick={(e) => { e.stopPropagation(); removeTrackFromPlaylist(id!, track.videoId); }}
+                      title="Remove from playlist"
                       className="text-text-dim hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                     >
                       <Trash2 className="w-4 h-4" />

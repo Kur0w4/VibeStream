@@ -94,14 +94,14 @@ export const usePlayerStore = create<PlayerState>()(
       isExpanded: false,
       isShuffle: false,
       repeatMode: 'off',
-      playbackContext: null,
+      playbackContext: null as Track[] | null,
       contextIndex: -1,
-      queue: [],
-      user: null,
-      playlists: [],
-      likedSongs: [],
-      followedArtists: [],
-      listeningHistory: [],
+      queue: [] as Track[],
+      user: null as User | null,
+      playlists: [] as { id: string; name: string; tracks: Track[] }[],
+      likedSongs: [] as Track[],
+      followedArtists: [] as { name: string; thumbnail: string }[],
+      listeningHistory: [] as Track[],
 
       // ── Player ──────────────────────────────────────────────────────────────────
       playTrack: (track, context) => {
@@ -354,6 +354,14 @@ export const usePlayerStore = create<PlayerState>()(
       name: 'vibestream-v2',
       partialize: (s) => ({
         volume: s.volume,
+        currentTrack: s.currentTrack,
+        playbackContext: s.playbackContext,
+        contextIndex: s.contextIndex,
+        queue: s.queue,
+        progress: s.progress,
+        duration: s.duration,
+        isShuffle: s.isShuffle,
+        repeatMode: s.repeatMode,
         // Guest data (no account)
         playlists: s.user ? [] : s.playlists,
         likedSongs: s.user ? [] : s.likedSongs,

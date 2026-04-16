@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap } from 'lucide-react';
 import { searchTracks, getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
@@ -144,6 +144,8 @@ export const Search = () => {
           {/* Like badge */}
           <button
             onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+            title={liked ? "Unlike" : "Like"}
+            aria-label={liked ? "Unlike song" : "Like song"}
             className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
           >
             <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-white')} />
@@ -159,6 +161,8 @@ export const Search = () => {
           <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+              title="More options"
+              aria-label="More options"
               className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all"
             >
               <MoreHorizontal className="w-4 h-4" />
@@ -179,6 +183,7 @@ export const Search = () => {
           <input
             type="text" placeholder="Songs, artists, moods..." value={query}
             onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search songs, artists, or moods"
             className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
           />
         </form>
@@ -208,12 +213,12 @@ export const Search = () => {
           <section>
             <h2 className="text-xl font-black text-white tracking-tight mb-4">Jump back in</h2>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              {quickPicks.map((track) => {
+              {quickPicks.map((track, index) => {
                 const isActive = currentTrack?.id === track.id;
                 const liked = likedSongs?.some((t) => t.id === track.id);
                 return (
                   <div
-                    key={track.id}
+                    key={`${track.id}-${index}`}
                     onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
                     className={cn(
                       'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border relative',
@@ -229,6 +234,8 @@ export const Search = () => {
                     <div className="flex items-center gap-1.5 mr-3">
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                        title={liked ? "Unlike" : "Like"}
+                        aria-label={liked ? "Unlike song" : "Like song"}
                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', liked ? 'opacity-100' : '')}
                       >
                         <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
@@ -237,6 +244,8 @@ export const Search = () => {
                       <div className="relative" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                          title="More options"
+                          aria-label="More options"
                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <MoreHorizontal className="w-4 h-4" />
@@ -302,7 +311,7 @@ export const Search = () => {
             <p className="text-text-dim text-center py-16 font-medium">No results found for "{query}"</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {results.map((track) => <TrackCard key={track.id} track={track} />)}
+              {results.map((track, index) => <TrackCard key={`${track.id}-${index}`} track={track} />)}
             </div>
           )}
         </section>

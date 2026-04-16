@@ -9,7 +9,7 @@ export const Trends = () => {
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const { playTrack, currentTrack, isPlaying, likedSongs, toggleLike } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, likedSongs, toggleLike, togglePause } = usePlayerStore();
 
   React.useEffect(() => {
     const h = () => setActiveDropdown(null);
@@ -60,7 +60,7 @@ export const Trends = () => {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <button title="Search trends" className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
                <SearchIcon className="w-4 h-4 text-text-dim" />
             </button>
           </div>
@@ -74,7 +74,7 @@ export const Trends = () => {
           ) : (
             results.map((track, index) => (
               <div 
-                key={track.id}
+                key={`${track.id}-${index}`}
                 onClick={() => {
                   const isActive = currentTrack?.id === track.id;
                   isActive ? togglePause() : playTrack(track, results);
@@ -115,13 +115,14 @@ export const Trends = () => {
                 
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                  title={likedSongs?.some(t => t.id === track.id) ? "Unlike" : "Like"}
                   className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
                 >
                   <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs?.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
                 </button>
 
                 <div className="relative flex justify-end opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white">
+                  <button onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)} title="More options" className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white">
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
                   {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}

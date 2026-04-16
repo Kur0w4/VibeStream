@@ -48,6 +48,7 @@ export const ArtistProfile = () => {
 
         <button
           onClick={() => navigate('/artists')}
+          title="Go back to artists"
           className="absolute top-6 left-6 z-20 p-2.5 bg-black/40 hover:bg-black/60 rounded-full transition-all text-white"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -76,6 +77,7 @@ export const ArtistProfile = () => {
         <button
           onClick={() => tracks.length > 0 && playTrack(tracks[0], tracks)}
           disabled={tracks.length === 0}
+          title="Play top songs"
           className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
         >
           <Play className="w-7 h-7 fill-current ml-0.5" />
@@ -115,7 +117,7 @@ export const ArtistProfile = () => {
               const isActive = currentTrack?.id === track.id;
               return (
                 <div
-                  key={track.id}
+                  key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
                     'grid grid-cols-[40px_1fr_80px_40px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
@@ -151,6 +153,7 @@ export const ArtistProfile = () => {
 
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                    title={likedSongs?.some(t => t.id === track.id) ? "Unlike" : "Like"}
                     className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
                   >
                     <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs?.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
@@ -159,6 +162,7 @@ export const ArtistProfile = () => {
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                      title="More options"
                       className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                     >
                       <MoreHorizontal className="w-4 h-4" />

@@ -108,12 +108,12 @@ export const Library = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {listeningHistory.slice(0, 9).map((track) => {
+              {listeningHistory.slice(0, 9).map((track, index) => {
                 const isActive = currentTrack?.id === track.id;
                 const isLiked = likedSongs?.some(t => t.id === track.id);
                 return (
                   <div
-                    key={track.id}
+                    key={`${track.id}-${index}`}
                     onClick={() => playTrack(track, listeningHistory)}
                     className={cn(
                       'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01]',
@@ -146,6 +146,7 @@ export const Library = () => {
                     <div className="flex items-center gap-2">
                        <button
                          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                         title={isLiked ? "Unlike" : "Like"}
                          className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
                        >
                          <Heart className={cn('w-4 h-4', isLiked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
@@ -154,6 +155,7 @@ export const Library = () => {
                        <div className="relative" onClick={(e) => e.stopPropagation()}>
                          <button
                            onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                           title="More options"
                            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                          >
                            <MoreHorizontal className="w-4 h-4" />
@@ -173,7 +175,7 @@ export const Library = () => {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-bg-sidebar border border-white/10 rounded-[32px] p-8 w-full max-w-md relative shadow-2xl">
-            <button onClick={() => setShowCreateModal(false)} className="absolute top-6 right-6 p-2 text-text-dim hover:text-white hover:bg-white/10 rounded-full transition-all">
+            <button onClick={() => setShowCreateModal(false)} title="Close" className="absolute top-6 right-6 p-2 text-text-dim hover:text-white hover:bg-white/10 rounded-full transition-all">
               <X className="w-5 h-5" />
             </button>
             <h2 className="text-3xl font-black text-white mb-6">New Playlist</h2>
@@ -182,7 +184,7 @@ export const Library = () => {
                 type="text" value={newPlaylistName}
                 onChange={(e) => setNewPlaylistName(e.target.value)}
                 placeholder="My awesome playlist..."
-                autoFocus
+                autoFocus aria-label="Playlist name"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white outline-none focus:border-accent mb-8 transition-colors placeholder:text-text-dim/40"
               />
               <div className="flex justify-end gap-3">
