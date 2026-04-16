@@ -19,7 +19,7 @@ export const MobileNav = () => {
           <NavLink
             key={to}
             to={to}
-            className={({ isActive }) => cn(
+            className={({ isActive }: { isActive: boolean }) => cn(
               'flex flex-col items-center gap-1 min-w-[64px] transition-all',
               isActive ? 'text-accent' : 'text-text-dim hover:text-white'
             )}

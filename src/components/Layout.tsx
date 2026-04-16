@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { Sidebar } from './Sidebar';
 import { Player } from './Player';
 import { TopBar } from './TopBar';

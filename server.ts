@@ -361,8 +361,31 @@ async function startServer() {
   // ── Listen History ───────────────────────────────────────────────────────────
   app.get("/api/history", isAuthenticated, (req: any, res: any) => {
     const limit = parseInt(req.query.limit as string) || 100;
-    const rows = db.prepare("SELECT * FROM (SELECT * FROM listen_history WHERE user_id = ? ORDER BY listened_at DESC LIMIT 200) t GROUP BY video_id ORDER BY listened_at DESC LIMIT ?").all(req.session.userId, limit) as any[];
-    res.json(rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
+    try {
+      const rows = db.prepare(`
+        SELECT h.* FROM listen_history h
+        INNER JOIN (
+          SELECT MAX(id) as max_id 
+          FROM listen_history 
+          WHERE user_id = ? 
+          GROUP BY video_id
+        ) m ON h.id = m.max_id
+        ORDER BY h.listened_at DESC 
+        LIMIT ?
+      `).all(req.session.userId, limit) as any[];
+      res.json(rows.map((r: any) => ({ 
+        id: r.video_id, 
+        videoId: r.video_id, 
+        title: r.title, 
+        artist: r.artist, 
+        thumbnail: r.thumbnail, 
+        duration: r.duration, 
+        url: r.url 
+      })));
+    } catch (e) {
+      console.error("[Server] History Fetch Error:", e);
+      res.status(500).json({ error: "DB error" });
+    }
   });
 
   app.post("/api/history", isAuthenticated, (req: any, res: any) => {

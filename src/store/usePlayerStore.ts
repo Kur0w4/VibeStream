@@ -272,7 +272,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       clearHistory: async () => {
         try {
-          await fetch('/api/history', { method: 'DELETE', credentials: 'include' });
+          await apiFetch('/api/history', { method: 'DELETE' });
           set({ listeningHistory: [] });
         } catch (err) {
           console.error('[Auth] Clear History failed:', err);
@@ -280,17 +280,14 @@ export const usePlayerStore = create<PlayerState>()(
       },
       updateUsername: async (username: string) => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          const res = await apiFetch('/api/auth/me', {
             method: 'PATCH',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username })
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Failed to update username');
           const currentUser = get().user;
           if (currentUser) {
-            set({ user: { ...currentUser, username: data.username } });
+            set({ user: { ...currentUser, username: res.username } });
           }
         } catch (err: any) {
           console.error('[Auth] Update Username failed:', err);
@@ -298,7 +295,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
       logout: async () => {
-        await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+        await apiFetch('/api/auth/logout', { method: 'POST' });
         set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
       },
       initAuth: async () => {
@@ -404,7 +401,11 @@ export const usePlayerStore = create<PlayerState>()(
       addToHistory: async (track) => {
         const { user } = get();
         if (user) {
-          fetch('/api/history', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(track) }).catch(() => {});
+          apiFetch('/api/history', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(track) 
+          }).catch(() => {});
         }
         set((s) => {
           const hist = s.listeningHistory.filter((t) => t.id !== track.id);
@@ -431,7 +432,7 @@ export const usePlayerStore = create<PlayerState>()(
         playlists: s.user ? [] : s.playlists,
         likedSongs: s.user ? [] : s.likedSongs,
         followedArtists: s.user ? [] : s.followedArtists,
-        listeningHistory: s.user ? [] : s.listeningHistory,
+        listeningHistory: s.listeningHistory,
       }),
     }
   )
