@@ -254,63 +254,65 @@ async function startServer() {
     });
   });
 
+  // ── Auth Helper ─────────────────────────────────────────────────────────────
+  async function normalizeFirebaseUser(req: any, token: string) {
+    if (!token || !token.includes('.')) return false;
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        let base64Body = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (base64Body.length % 4) base64Body += '=';
+        const payload = JSON.parse(Buffer.from(base64Body, 'base64').toString());
+        
+        if (payload && (payload.user_id || payload.sub)) {
+          const fUid = payload.user_id || payload.sub;
+          const email = payload.email || '';
+          const name = payload.name || email.split('@')[0] || 'User';
+
+          let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
+          if (!user) {
+            const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
+            user = { id: info.lastInsertRowid, username: name, email };
+          } else if (!user.firebase_uid) {
+            db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
+          }
+
+          req.session.userId = user.id;
+          req.session.username = user.username;
+          req.session.email = user.email;
+          req.session.lastAuthError = null;
+          await new Promise((resolve) => req.session.save(resolve));
+          return true;
+        } else {
+          req.session.lastAuthError = "Invalid payload: missing sub/user_id";
+        }
+      }
+    } catch (e: any) {
+      req.session.lastAuthError = `Decoding error: ${e.message}`;
+    }
+    return false;
+  }
+
   // ── Auth Middleware ──────────────────────────────────────────────────────────
-  // Middleware to handle both Session Cookies and Authorization Bearer Tokens (Firebase)
   app.use(async (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split("Bearer ")[1];
-      // In a real app, we'd verify the Firebase Token properly with firebase-admin.
-      // For this implementation, we trust the token's presence signals a valid Firebase user on the frontend.
-      // We'll extract the "sub" or "user_id" if we can, or just let the session handle it.
-      // For now, if the session is empty but valid token is provided, we'll try to identify.
-      if (token && token.includes('.')) {
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            let base64Body = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-            while (base64Body.length % 4) base64Body += '=';
-            const payload = JSON.parse(Buffer.from(base64Body, 'base64').toString());
-            
-            if (payload && (payload.user_id || payload.sub)) {
-              const fUid = payload.user_id || payload.sub;
-              const email = payload.email || '';
-              const name = payload.name || email.split('@')[0] || 'User';
-
-              console.log(`[Auth] Identified token for: ${email || fUid}`);
-
-              // Find or create normalized user in local SQL
-              let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
-              
-              if (!user) {
-                console.log(`[Auth] Creating new user for ${email || fUid}`);
-                const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
-                user = { id: info.lastInsertRowid, username: name, email };
-              } else if (!user.firebase_uid) {
-                db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
-              }
-
-              req.session.userId = user.id;
-              req.session.username = user.username;
-              req.session.email = user.email;
-              req.session.lastAuthError = null;
-
-              // Force session save for async middleware
-              await new Promise((resolve) => req.session.save(resolve));
-              console.log(`[Auth] Session persisted for user ${user.id}`);
-            } else {
-              req.session.lastAuthError = "Invalid payload: missing sub/user_id";
-            }
-          } else {
-            req.session.lastAuthError = "Invalid token format (not 3 parts)";
-          }
-        } catch (e: any) {
-          console.error("[Auth] Token decoding error:", e);
-          req.session.lastAuthError = `Decoding error: ${e.message}`;
-        }
-      }
+      await normalizeFirebaseUser(req, token);
     }
     next();
+  });
+
+  // ── Auth Routes ──────────────────────────────────────────────────────────────
+  app.post("/api/auth/token", async (req: any, res: any) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    const success = await normalizeFirebaseUser(req, token);
+    if (success) {
+      res.json({ id: req.session.userId, username: req.session.username });
+    } else {
+      res.status(401).json({ error: req.session.lastAuthError || "Auth failed" });
+    }
   });
 
   // Protected Routes Middleware

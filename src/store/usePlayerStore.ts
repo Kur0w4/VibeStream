@@ -320,13 +320,19 @@ export const usePlayerStore = create<PlayerState>()(
             unsubscribe();
             if (fUser) {
               try {
-                const user = await apiFetch('/api/auth/me');
+                const token = await fUser.getIdToken();
+                // Send token in body to bypass potential header stripping
+                const user = await apiFetch('/api/auth/token', {
+                  method: 'POST',
+                  body: JSON.stringify({ token })
+                });
+                
                 if (user) {
                   set({ user });
                   await get().syncFromServer();
                 }
               } catch (err) {
-                console.error('[Auth] initAuth failed to sync:', err);
+                console.error('[Auth] initAuth failed to identify:', err);
               }
             }
             resolve();
