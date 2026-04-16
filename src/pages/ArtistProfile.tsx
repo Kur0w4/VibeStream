@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2, Heart, MoreHorizontal, Search as SearchIcon } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
-import { searchTracks } from '../services/api';
+import { searchTracks, getArtistTracks } from '../services/api';
 import { TrackDropdown } from '../components/Search';
 import { HeroSkeleton, TrackRowSkeleton } from '../components/Skeletons';
 import { cn } from '../lib/utils';
@@ -33,8 +33,7 @@ export const ArtistProfile = () => {
   useEffect(() => {
     if (!artistName) return;
     setLoading(true);
-    fetch(`/api/artist/${encodeURIComponent(artistName)}/tracks`)
-      .then((r) => r.json())
+    getArtistTracks(artistName)
       .then((data: Track[]) => {
         setTracks(data);
         if (data.length > 0 && !thumbnail) setThumbnail(data[0].thumbnail);

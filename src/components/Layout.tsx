@@ -4,10 +4,16 @@ import { Sidebar } from './Sidebar';
 import { Player } from './Player';
 import { TopBar } from './TopBar';
 import { MobileNav } from './MobileNav';
+import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
+  const { initAuth } = usePlayerStore();
   const isAuthPage = location.pathname === '/auth';
+
+  React.useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   if (isAuthPage) {
     return (

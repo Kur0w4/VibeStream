@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { searchTracks } from '../services/api';
+import { searchTracks, getYourMix } from '../services/api';
 import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon, Heart } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { TrackDropdown } from '../components/Search';
@@ -43,9 +43,8 @@ export const PlaylistDetail = () => {
   useEffect(() => {
     if (!isMix || !user) return;
     setMixLoading(true);
-    fetch('/api/mix', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => { setMixTracks(Array.isArray(data) ? data : []); setMixLoading(false); })
+    getYourMix()
+      .then((data) => { setMixTracks(data); setMixLoading(false); })
       .catch(() => setMixLoading(false));
   }, [isMix, user]);
 

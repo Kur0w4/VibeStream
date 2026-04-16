@@ -7,7 +7,9 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 import cors from "cors";
-// import fs from "fs";
+import SQLiteStoreFactory from "connect-sqlite3";
+
+const SQLiteStore = SQLiteStoreFactory(session);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -191,6 +193,7 @@ async function startServer() {
   app.use(express.json());
   app.use(
     session({
+      store: new SQLiteStore({ db: "sessions.db", dir: "./" }) as any,
       secret: "vibestream-secret-2024",
       resave: false,
       saveUninitialized: false,

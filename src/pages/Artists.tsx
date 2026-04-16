@@ -2,21 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search as SearchIcon, Mic2, UserPlus, UserCheck, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { searchArtists, Artist } from '../services/api';
 import { cn } from '../lib/utils';
-
-interface Artist {
-  name: string;
-  thumbnail: string;
-}
-
-async function fetchArtists(q: string): Promise<Artist[]> {
-  const url = q.trim()
-    ? `/api/search/artist?q=${encodeURIComponent(q)}`
-    : `/api/search/artist`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Search failed');
-  return res.json();
-}
 
 export const Artists = () => {
   const navigate = useNavigate();
@@ -30,7 +17,7 @@ export const Artists = () => {
 
   // Load trending artists on mount
   useEffect(() => {
-    fetchArtists('').then(setSuggested).catch(() => {}).finally(() => setLoadingDefault(false));
+    searchArtists('').then(setSuggested).catch(() => {}).finally(() => setLoadingDefault(false));
   }, []);
 
   // Debounced search + pressing Enter navigates direct to artist profile
@@ -38,7 +25,7 @@ export const Artists = () => {
     if (!query.trim()) { setSearchResults([]); return; }
     const id = setTimeout(async () => {
       setSearching(true);
-      try { setSearchResults(await fetchArtists(query)); }
+      try { setSearchResults(await searchArtists(query)); }
       catch {} finally { setSearching(false); }
     }, 600);
     return () => clearTimeout(id);
