@@ -18,6 +18,8 @@ const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail').then(m => ({ 
 const Artists = lazy(() => import('./pages/Artists').then(m => ({ default: m.Artists })));
 const ArtistProfile = lazy(() => import('./pages/ArtistProfile').then(m => ({ default: m.ArtistProfile })));
 const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
+const Auth = lazy(() => import('./pages/Auth').then(m => ({ default: m.Auth })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-20 animate-in fade-in duration-500">
@@ -41,6 +43,8 @@ export default function App() {
             <Route path="/playlists/:id" element={<PlaylistDetail />} />
             <Route path="/artists" element={<Artists />} />
             <Route path="/artists/:name" element={<ArtistProfile />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Suspense>
       </Layout>

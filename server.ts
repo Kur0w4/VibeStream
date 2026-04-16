@@ -85,14 +85,54 @@ db.exec(`
 `);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+function cleanTitle(title: string) {
+  if (!title) return "Unknown Song";
+  return title
+    .replace(/\(Official (Video|Audio|Music Video|Lyrics)\)/gi, "")
+    .replace(/\[Official (Video|Audio|Music Video|Lyrics)\]/gi, "")
+    .replace(/\(Audio\)/gi, "")
+    .replace(/\[Audio\]/gi, "")
+    .replace(/\(Lyrics\)/gi, "")
+    .replace(/\[Lyrics\]/gi, "")
+    .replace(/\(Visualizer\)/gi, "")
+    .replace(/\[Visualizer\]/gi, "")
+    .replace(/\(Prod\..*?\)/gi, "")
+    .replace(/\[Prod\..*?\?\]/gi, "")
+    .replace(/\(feat\..*?\)/gi, "") // We keep feat in some cases or remove if preferred
+    .replace(/FT\..*?\s/gi, "")
+    .replace(/official video/gi, "")
+    .replace(/lyrics video/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function mapVideo(video: any) {
   const videoId = video.id?.videoId;
   if (!videoId || videoId === "undefined") return null;
+
+  let artist: string = video.snippet?.channelTitle || video.author?.name || "YouTube Artist";
+  
+  // Topic channels are the gold standard for music search
+  if (artist.toLowerCase().endsWith(" - topic")) {
+    artist = artist.slice(0, -8);
+  }
+
+  // Sometimes artists put "Artist - Title" in the video title.
+  // We can try to extract artist if the channel name is generic.
+  let title = video.title || "Unknown Title";
+  if (artist.toLowerCase().includes("vevo") || artist.toLowerCase() === "youtube artist") {
+    if (title.includes(" - ")) {
+       const parts = title.split(" - ");
+       artist = parts[0].trim();
+       title = parts[1];
+    }
+  }
+
   return {
     id: videoId,
     videoId,
-    title: video.title || "Unknown Title",
-    artist: video.snippet?.channelTitle || "YouTube Artist",
+    title: cleanTitle(title),
+    artist: artist,
     thumbnail:
       video.snippet?.thumbnails?.high?.url ||
       video.snippet?.thumbnails?.default?.url ||
@@ -106,16 +146,28 @@ function filterDuration(video: any) {
   const duration = video.duration_raw || video.snippet?.duration || "";
   if (!duration || duration.toLowerCase() === "live") return true;
   const parts = duration.split(":");
+  // Skip extremely long videos (mixes) if we want direct songs (e.g., > 12 mins)
   if (parts.length > 2) return false;
-  if (parts.length === 2 && parseInt(parts[0], 10) > 15) return false;
+  if (parts.length === 2 && parseInt(parts[0], 10) > 12) return false;
   return true;
 }
 
 async function youtubeSearch(query: string, limit = 50) {
-  const results = await search(query);
+  // Advanced Query Engineering:
+  // We prioritize "Topic" channels and "Official" content by appending specific markers.
+  // We also try to avoid fan-made covers unless explicitly searched.
+  const isSpecificSearch = query.length > 15;
+  const refinedQuery = isSpecificSearch 
+    ? `${query} official`
+    : `${query} topic music`;
+
+  const results = await search(refinedQuery);
   return results
     .filter((v: any) => {
       const vid = v.id?.videoId;
+      const title = (v.title || "").toLowerCase();
+      // Heuristic: filter out 1-hour loops or full albums if looking for a song
+      if (title.includes("full album") || title.includes("1 hour") || title.includes("loop")) return false;
       return vid && vid !== "undefined" && filterDuration(v);
     })
     .map(mapVideo)
@@ -185,6 +237,19 @@ async function startServer() {
   app.get("/api/auth/me", (req: any, res: any) => {
     if (!req.session?.userId) return res.json(null);
     res.json({ id: req.session.userId, username: req.session.username });
+  });
+
+  app.patch("/api/auth/me", requireAuth, async (req: any, res: any) => {
+    const { username } = req.body;
+    if (!username?.trim() || username.length < 3) return res.status(400).json({ error: "Invalid username" });
+    try {
+      db.prepare("UPDATE users SET username = ? WHERE id = ?").run(username.trim(), req.session.userId);
+      req.session.username = username.trim();
+      res.json({ id: req.session.userId, username: username.trim() });
+    } catch (e: any) {
+      if (e.message?.includes("UNIQUE")) return res.status(409).json({ error: "Username already taken" });
+      res.status(500).json({ error: "Server error" });
+    }
   });
 
   // ── Liked Songs ──────────────────────────────────────────────────────────────
@@ -259,6 +324,13 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
+  app.delete("/api/history", requireAuth, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM listen_history WHERE user_id = ?").run(req.session.userId);
+      res.json({ ok: true });
+    } catch { res.status(500).json({ error: "DB error" }); }
+  });
+
   // ── Followed Artists ─────────────────────────────────────────────────────────
   app.get("/api/artists/followed", requireAuth, (req: any, res: any) => {
     const rows = db.prepare("SELECT * FROM followed_artists WHERE user_id = ? ORDER BY created_at DESC").all(req.session.userId);
@@ -297,7 +369,8 @@ async function startServer() {
   // Channels whose name closely matches the query are scored higher.
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
-    const searchTerm = q ? q : "top music songs 2024";
+    // When searching for artists, we append "channel" or "topic" to find profiles, not just videos
+    const searchTerm = q ? `${q} music channel` : "top music artists 2024 channel";
     try {
       console.log(`[Server] Artist search: "${searchTerm}"`);
       const results = await search(searchTerm);
@@ -310,50 +383,40 @@ async function startServer() {
           (v as any).author?.name ||
           (v as any).channelTitle || "";
 
-        // Fallback for youtube-search-without-api-key missing channel title
-        if (!channel && v.title) {
-          const parts = v.title.split("-");
-          if (parts.length > 1) {
-            channel = parts[0].trim();
-          } else {
-            // Just use a sanitized version of the title if no dash (e.g. drop words like 'official video')
-            channel = v.title.replace(/[\(\[].*?[\)\]]/g, "").trim();
-          }
+        // Standardise artist name (remove " - Topic" for the profile display)
+        if (channel.toLowerCase().endsWith(" - topic")) {
+          channel = channel.slice(0, -8);
         }
-        
+
         const thumb: string =
           v.snippet?.thumbnails?.high?.url ||
           v.snippet?.thumbnails?.medium?.url ||
           v.snippet?.thumbnails?.default?.url ||
           "";
 
-        if (!channel || seen.has(channel)) continue;
-        seen.add(channel);
+        if (!channel || seen.has(channel.toLowerCase())) continue;
+        seen.add(channel.toLowerCase());
 
-        // Score: prioritise channels whose name includes the query string
+        // Score: prioritise channels whose name includes the query string closely
         let score = 0;
         if (q) {
           const cl = channel.toLowerCase();
           const ql = q.toLowerCase();
-          if (cl === ql) score = 3;
-          else if (cl.startsWith(ql)) score = 2;
-          else if (cl.includes(ql)) score = 1;
+          if (cl === ql) score = 10;
+          else if (cl.startsWith(ql)) score = 5;
+          else if (cl.includes(ql)) score = 2;
         }
 
         artists.push({ name: channel, thumbnail: thumb, score });
-        if (artists.length >= 24) break;
+        if (artists.length >= 30) break;
       }
 
       // Best-matching channels first
       artists.sort((a, b) => b.score - a.score);
 
-      // If absolutely no channels were matched, create a fallback artist from the query
-      if (artists.length === 0 && q) {
-        artists.push({ name: q, thumbnail: "", score: 10 });
-      }
-
-      console.log(`[Server] Artist search returned ${artists.length} channels`);
-      res.json(artists.slice(0, 16).map(({ name, thumbnail }) => ({ name, thumbnail })));
+      const response = artists.slice(0, 16).map(({ name, thumbnail }) => ({ name: name.trim(), thumbnail }));
+      console.log(`[Server] Artist search returned ${response.length} results`);
+      res.json(response);
     } catch (e) {
       console.error("[Server] Artist search error:", e);
       res.status(500).json({ error: "Search failed" });

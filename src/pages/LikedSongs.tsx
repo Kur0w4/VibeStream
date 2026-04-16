@@ -34,14 +34,14 @@ export const LikedSongs = () => {
   return (
     <div className="flex-1 bg-gradient-to-b from-rose-900/30 via-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
       {/* Hero Header */}
-      <div className="px-10 py-14 flex items-end gap-8">
-        <div className="w-52 h-52 bg-gradient-to-br from-rose-500 to-red-700 rounded-[36px] shadow-[0_20px_50px_rgba(244,63,94,0.3)] flex items-center justify-center p-12 shrink-0">
+      <div className="px-6 md:px-10 py-10 md:py-14 flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 text-center md:text-left">
+        <div className="w-40 h-40 md:w-52 md:h-52 bg-gradient-to-br from-rose-500 to-red-700 rounded-[32px] md:rounded-[36px] shadow-[0_20px_50px_rgba(244,63,94,0.3)] flex items-center justify-center p-10 md:p-12 shrink-0">
           <Heart className="w-full h-full text-white fill-white drop-shadow-2xl" />
         </div>
         <div className="mb-2">
           <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.4em]">Playlist</span>
-          <h1 className="text-7xl font-black text-white mt-2 tracking-tighter">Liked Songs</h1>
-          <div className="flex items-center gap-2 mt-5">
+          <h1 className="text-4xl md:text-7xl font-black text-white mt-2 tracking-tighter">Liked Songs</h1>
+          <div className="flex items-center justify-center md:justify-start gap-2 mt-4 md:mt-5">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
               <span className="text-[10px] font-black text-black">{displayName.slice(0, 1).toUpperCase()}</span>
             </div>
@@ -91,11 +91,11 @@ export const LikedSongs = () => {
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
+        <div className="grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
           <span className="text-center">#</span>
           <span>Title</span>
-          <span>Album</span>
-          <span className="text-center"><Clock className="w-4 h-4 mx-auto" /></span>
+          <span className="hidden md:block">Album</span>
+          <span className="text-center hidden md:block"><Clock className="w-4 h-4 mx-auto" /></span>
           <span />
         </div>
 
@@ -117,7 +117,7 @@ export const LikedSongs = () => {
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, filtered)}
                   className={cn(
-                    'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
+                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isActive ? 'bg-rose-500/10 border border-rose-500/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
@@ -145,7 +145,7 @@ export const LikedSongs = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex items-center gap-3 md:gap-4 min-w-0">
                     <img src={track.thumbnail} className="w-10 h-10 rounded-xl shadow-lg shrink-0 object-cover" alt="" />
                     <div className="min-w-0">
                       <p className={cn('text-sm font-bold truncate', isActive ? 'text-rose-400' : 'text-white')}>{track.title}</p>
@@ -153,8 +153,8 @@ export const LikedSongs = () => {
                     </div>
                   </div>
 
-                  <span className="text-xs text-text-dim font-medium truncate">YouTube Music</span>
-                  <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
+                  <span className="text-xs text-text-dim font-medium truncate hidden md:block">YouTube Music</span>
+                  <span className="text-xs text-text-dim font-mono text-center font-bold hidden md:block">{track.duration}</span>
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button

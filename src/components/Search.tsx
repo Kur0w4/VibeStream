@@ -120,14 +120,14 @@ export const Search = () => {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36">
       {/* Sticky search header */}
-      <div className="sticky top-0 z-10 px-8 py-5 bg-bg-main/85 backdrop-blur-xl border-b border-white/5 flex items-center gap-4">
+      <div className="sticky top-0 z-10 px-4 md:px-8 py-4 md:py-5 bg-bg-main/85 backdrop-blur-xl border-b border-white/5 flex items-center gap-4">
         <form onSubmit={(e) => e.preventDefault()} className="relative group flex-1 max-w-lg">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
           <input
             type="text" placeholder="Songs, artists, moods..." value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search songs, artists, or moods"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 md:py-3 pl-12 pr-6 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
           />
         </form>
         {query && (
@@ -141,7 +141,7 @@ export const Search = () => {
         {!query && (
           <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-4xl font-black text-white tracking-tighter">
+              <h1 className="text-3xl md:text-4xl font-black text-white tracking-tighter">
                 {getGreeting()}{user ? `, ${user.username}` : ''} 👋
               </h1>
               <p className="text-text-dim mt-1 font-medium">
@@ -156,7 +156,7 @@ export const Search = () => {
           <section>
             <h2 className="text-xl font-black text-white tracking-tight mb-4">Jump back in</h2>
             {loading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {[1, 2, 3, 4, 5, 6].map((i) => <HistorySkeleton key={i} index={i} />)}
               </div>
             ) : quickPicks.length === 0 ? (
@@ -164,7 +164,7 @@ export const Search = () => {
                 <p className="text-text-dim text-sm italic">Nothing played yet</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {quickPicks.map((track, index) => {
                       const isActive = currentTrack?.id === track.id;
                       const liked = likedSongs?.some((t) => t.id === track.id);

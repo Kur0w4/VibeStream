@@ -34,15 +34,15 @@ export const History = () => {
   return (
     <div className="flex-1 bg-gradient-to-b from-blue-900/20 via-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
       {/* Hero Header */}
-      <div className="px-10 py-14 flex items-end gap-8 relative overflow-hidden">
+      <div className="px-6 md:px-10 py-10 md:py-14 flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 relative overflow-hidden text-center md:text-left">
         <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 to-transparent pointer-events-none" />
-        <div className="w-52 h-52 bg-gradient-to-br from-blue-600 to-cyan-700 rounded-[36px] shadow-[0_20px_50px_rgba(37,99,235,0.3)] flex items-center justify-center p-12 shrink-0 relative z-10">
+        <div className="w-40 h-40 md:w-52 md:h-52 bg-gradient-to-br from-blue-600 to-cyan-700 rounded-[32px] md:rounded-[36px] shadow-[0_20px_50px_rgba(37,99,235,0.3)] flex items-center justify-center p-10 md:p-12 shrink-0 relative z-10">
           <Clock className="w-full h-full text-white drop-shadow-2xl" />
         </div>
         <div className="mb-2 relative z-10">
           <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]">Personal Space</span>
-          <h1 className="text-7xl font-black text-white mt-2 tracking-tighter">Listening History</h1>
-          <div className="flex items-center gap-2 mt-5">
+          <h1 className="text-4xl md:text-7xl font-black text-white mt-2 tracking-tighter">Listening History</h1>
+          <div className="flex items-center justify-center md:justify-start gap-2 mt-4 md:mt-5">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
               <span className="text-[10px] font-black text-black">{displayName.slice(0, 1).toUpperCase()}</span>
             </div>
@@ -55,45 +55,47 @@ export const History = () => {
         </div>
       </div>
 
-      <div className="px-10 py-6">
+      <div className="px-4 md:px-10 py-6">
         {/* Actions bar */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={playAll}
-            disabled={listeningHistory.length === 0}
-            title="Play history from start"
-            className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
-          >
-            <Play className="w-7 h-7 fill-current ml-0.5" />
-          </button>
-          <button
-            onClick={playShuffle}
-            disabled={listeningHistory.length === 0}
-            title="Shuffle history"
-            className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all disabled:opacity-40"
-          >
-            <Shuffle className="w-6 h-6" />
-          </button>
+        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={playAll}
+              disabled={listeningHistory.length === 0}
+              title="Play history from start"
+              className="w-12 h-12 md:w-14 md:h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
+            >
+              <Play className="w-6 h-6 md:w-7 md:h-7 fill-current ml-0.5" />
+            </button>
+            <button
+              onClick={playShuffle}
+              disabled={listeningHistory.length === 0}
+              title="Shuffle history"
+              className="p-2.5 md:p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all disabled:opacity-40"
+            >
+              <Shuffle className="w-6 h-6" />
+            </button>
+          </div>
 
           {/* Search */}
-          <div className="ml-auto relative group">
+          <div className="md:ml-auto relative group w-full md:w-64">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search in history"
-              className="bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-text-dim/50 outline-none focus:border-accent/50 focus:bg-white/8 transition-all w-64"
+              className="bg-white/5 border border-white/10 rounded-xl py-2 md:py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-text-dim/50 outline-none focus:border-accent/50 focus:bg-white/8 transition-all w-full"
             />
           </div>
         </div>
 
         {/* Table Header */}
-        <div className="grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
+        <div className="grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
           <span className="text-center">#</span>
           <span>Title</span>
-          <span>Artist</span>
-          <span className="text-center"><Clock className="w-4 h-4 mx-auto" /></span>
+          <span className="hidden md:block">Artist</span>
+          <span className="text-center hidden md:block"><Clock className="w-4 h-4 mx-auto" /></span>
           <span />
         </div>
 
@@ -115,7 +117,7 @@ export const History = () => {
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, filtered)}
                   className={cn(
-                    'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
+                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_100px_40px] gap-2 md:gap-4 px-2 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isActive ? 'bg-blue-500/10 border border-blue-500/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
@@ -143,16 +145,16 @@ export const History = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex items-center gap-3 md:gap-4 min-w-0">
                     <img src={track.thumbnail} className="w-10 h-10 rounded-xl shadow-lg shrink-0 object-cover" alt="" />
                     <div className="min-w-0">
-                      <p className={cn('text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
-                      <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
+                      <p className={cn('text-[13px] md:text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
+                      <p className="text-[11px] md:text-xs text-text-dim font-medium truncate">{track.artist}</p>
                     </div>
                   </div>
 
-                  <span className="text-xs text-text-dim font-medium truncate">{track.artist}</span>
-                  <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
+                  <span className="text-xs text-text-dim font-medium truncate hidden md:block">{track.artist}</span>
+                  <span className="text-xs text-text-dim font-mono text-center font-bold hidden md:block">{track.duration}</span>
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button

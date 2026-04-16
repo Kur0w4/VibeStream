@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { User, LogOut, Settings, Trash2, History } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { AuthModal } from './AuthModal';
 
 export const TopBar = () => {
+  const navigate = useNavigate();
   const { user, logout, clearQueue } = usePlayerStore();
-  const [showAuth, setShowAuth] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
   const initials = user?.username?.slice(0, 2).toUpperCase() ?? '';
@@ -17,31 +17,30 @@ export const TopBar = () => {
   }, []);
 
   const clearHistory = async () => {
-    // We update local store directly, we could also call API but for now we reset the store visually
     usePlayerStore.setState({ listeningHistory: [] });
   };
 
   return (
-    <header className="sticky top-0 z-[100] w-full px-8 py-5 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[90px] shrink-0">
+    <header className="sticky top-0 z-[100] w-full px-4 md:px-8 py-4 md:py-5 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[70px] md:h-[90px] shrink-0">
       <div className="flex items-center gap-4">
         {!user ? (
-          <button
-            onClick={() => setShowAuth(true)}
+          <Link
+            to="/auth"
             className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-accent to-blue-500 hover:from-accent/90 hover:to-blue-500/90 text-black font-black rounded-2xl transition-all shadow-xl shadow-accent/20 hover:scale-105"
           >
             <User className="w-5 h-5" />
             Sign In
-          </button>
+          </Link>
         ) : (
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="flex items-center gap-3 pl-3 pr-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group"
+              className="flex items-center gap-2 md:gap-3 pl-2 md:pl-3 pr-4 md:pr-5 py-2 md:py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all group"
             >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">
-                <span className="text-black font-black text-sm">{initials}</span>
+              <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center shrink-0 shadow-lg group-hover:scale-105 transition-transform">
+                <span className="text-black font-black text-xs md:text-sm">{initials}</span>
               </div>
-              <span className="text-sm font-bold text-white max-w-[120px] truncate">{user.username}</span>
+              <span className="text-xs md:text-sm font-bold text-white max-w-[80px] md:max-w-[120px] truncate">{user.username}</span>
             </button>
 
             {/* Settings Dropdown */}
@@ -53,19 +52,34 @@ export const TopBar = () => {
                 </div>
                 
                 <div className="p-2 space-y-1">
-                  <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                  <button 
+                    onClick={() => { setShowMenu(false); navigate('/settings'); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                  >
                     <Settings className="w-4 h-4" /> Account Settings
                   </button>
-                  <button onClick={clearHistory} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                  <button 
+                    onClick={() => { 
+                      setShowMenu(false); 
+                      usePlayerStore.getState().clearHistory().then(() => alert("History cleared successfully.")); 
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                  >
                     <History className="w-4 h-4" /> Clear History
                   </button>
-                  <button onClick={clearQueue} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors">
+                  <button 
+                    onClick={() => { setShowMenu(false); clearQueue(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-dim hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                  >
                     <Trash2 className="w-4 h-4" /> Clear Queue
                   </button>
                 </div>
 
                 <div className="p-2 border-t border-white/5">
-                  <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors">
+                  <button 
+                    onClick={() => { setShowMenu(false); logout(); navigate('/'); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                  >
                     <LogOut className="w-4 h-4" /> Log out
                   </button>
                 </div>
@@ -74,8 +88,6 @@ export const TopBar = () => {
           </div>
         )}
       </div>
-
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </header>
   );
 };

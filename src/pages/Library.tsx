@@ -56,7 +56,7 @@ export const Library = () => {
         </header>
 
         {/* Category cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-14">
           {categories.map(({ icon: Icon, title, count, to, color, iconColor }) => (
             <button
               key={title}
@@ -107,7 +107,7 @@ export const Library = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {listeningHistory.slice(0, 9).map((track, index) => {
                 const isActive = currentTrack?.id === track.id;
                 const isLiked = likedSongs?.some(t => t.id === track.id);

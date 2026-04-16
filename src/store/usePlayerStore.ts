@@ -12,8 +12,10 @@ export interface Track {
 }
 
 export interface User {
-  id: number;
+  id: string | number;
   username: string;
+  email?: string;
+  avatar?: string;
 }
 
 interface PlayerState {
@@ -61,9 +63,12 @@ interface PlayerState {
 
   // Auth actions
   login: (user: User) => void;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
   initAuth: () => Promise<void>;
   syncFromServer: () => Promise<void>;
+  clearHistory: () => Promise<void>;
+  updateUsername: (username: string) => Promise<void>;
 
   // Data actions
   createPlaylist: (name: string) => Promise<void>;
@@ -231,6 +236,55 @@ export const usePlayerStore = create<PlayerState>()(
       login: (user) => {
         set({ user });
         get().syncFromServer();
+      },
+      loginWithGoogle: async () => {
+        try {
+          const { auth, googleProvider } = await import('../lib/firebase');
+          const { signInWithPopup } = await import('firebase/auth');
+          const result = await signInWithPopup(auth, googleProvider);
+          const fUser = result.user;
+          
+          const user: User = {
+            id: fUser.uid,
+            username: fUser.displayName || fUser.email?.split('@')[0] || 'User',
+            email: fUser.email || '',
+            avatar: fUser.photoURL || ''
+          };
+          
+          set({ user });
+          // After google login, we update history/playlists from server or just use local
+          await get().syncFromServer();
+        } catch (err) {
+          console.error('[Auth] Google Login failed:', err);
+          throw err;
+        }
+      },
+      clearHistory: async () => {
+        try {
+          await fetch('/api/history', { method: 'DELETE', credentials: 'include' });
+          set({ listeningHistory: [] });
+        } catch (err) {
+          console.error('[Auth] Clear History failed:', err);
+        }
+      },
+      updateUsername: async (username: string) => {
+        try {
+          const res = await fetch('/api/auth/me', {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to update username');
+          const currentUser = get().user;
+          if (currentUser) {
+            set({ user: { ...currentUser, username: data.username } });
+          }
+        } catch (err: any) {
+          console.error('[Auth] Update Username failed:', err);
+          throw err;
+        }
       },
       logout: async () => {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });

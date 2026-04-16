@@ -96,33 +96,33 @@ export const Artists = () => {
 
   return (
     <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
-      <div className="px-10 py-12">
-        <header className="flex flex-col gap-2 mb-10">
-          <span className="text-accent text-[10px] font-black uppercase tracking-[0.4em]">Discover</span>
-          <h1 className="text-5xl font-black text-white tracking-tighter">Artists</h1>
-          <p className="text-text-dim text-sm max-w-xl font-medium mt-1">Search by name and press Enter to go directly to an artist's songs</p>
+      <div className="px-4 md:px-10 py-8 md:py-12">
+        <header className="flex flex-col gap-1 md:gap-2 mb-8 md:mb-10 text-center md:text-left">
+          <span className="text-accent text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em]">Discover</span>
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter">Artists</h1>
+          <p className="text-text-dim text-xs md:text-sm max-w-xl font-medium mt-1 mx-auto md:mx-0">Search by name and discover their full music collection</p>
         </header>
 
         {/* Search — Enter navigates to artist profile */}
-        <form onSubmit={handleSearch} className="relative group mb-10 max-w-md flex gap-3">
+        <form onSubmit={handleSearch} className="relative group mb-10 max-w-md mx-auto md:mx-0 flex gap-2 md:gap-3">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
             <input
               type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder="Artist name (press Enter to view songs)..."
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
+              placeholder="Search artist..."
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 md:py-3.5 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
             />
           </div>
           {query.trim() && (
-            <button type="submit" className="px-5 py-3.5 bg-accent text-black font-black text-sm rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-accent/20 whitespace-nowrap">
+            <button type="submit" className="px-4 md:px-5 py-3 md:py-3.5 bg-accent text-black font-black text-xs md:text-sm rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-accent/20 whitespace-nowrap">
               View songs
             </button>
           )}
           {query && !searching && (
             <button type="button" onClick={() => setQuery('')}
-              className="absolute right-[130px] top-1/2 -translate-y-1/2 text-text-dim hover:text-white text-xs transition-colors px-2">✕</button>
+              className={cn("absolute top-1/2 -translate-y-1/2 text-text-dim hover:text-white text-xs transition-colors px-2", query.trim() ? "right-[110px] md:right-[130px]" : "right-2")}>✕</button>
           )}
-          {searching && <Loader2 className="absolute right-[135px] top-1/2 -translate-y-1/2 w-4 h-4 text-accent animate-spin" />}
+          {searching && <Loader2 className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-accent animate-spin", query.trim() ? "right-[115px] md:right-[135px]" : "right-4")} />}
         </form>
 
         <div className="flex items-center justify-between mb-6">

@@ -167,6 +167,61 @@ export const Player = () => {
     catch (_) {}
   }, [volume, isMuted]);
 
+  // ─── Media Session API (Lock screen & OS controls) ─────────────────────────
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+
+    navigator.mediaSession.metadata = new window.MediaMetadata({
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+      album: 'VibeStream',
+      artwork: [
+        { src: currentTrack.thumbnail, sizes: '96x96', type: 'image/jpeg' },
+        { src: currentTrack.thumbnail, sizes: '128x128', type: 'image/jpeg' },
+        { src: currentTrack.thumbnail, sizes: '192x192', type: 'image/jpeg' },
+        { src: currentTrack.thumbnail, sizes: '256x256', type: 'image/jpeg' },
+        { src: currentTrack.thumbnail, sizes: '384x384', type: 'image/jpeg' },
+        { src: currentTrack.thumbnail, sizes: '512x512', type: 'image/jpeg' },
+      ],
+    });
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const ms = navigator.mediaSession;
+    ms.setActionHandler('play', () => { setIsPlaying(true); });
+    ms.setActionHandler('pause', () => { setIsPlaying(false); });
+    ms.setActionHandler('previoustrack', () => { prevTrack(); });
+    ms.setActionHandler('nexttrack', () => { nextTrack(); });
+    ms.setActionHandler('seekbackward', (details) => {
+      const player = ytPlayerRef.current;
+      if (!player) return;
+      const skipTime = details.seekOffset || 10;
+      player.seekTo(Math.max(player.getCurrentTime() - skipTime, 0), true);
+    });
+    ms.setActionHandler('seekforward', (details) => {
+      const player = ytPlayerRef.current;
+      if (!player) return;
+      const skipTime = details.seekOffset || 10;
+      player.seekTo(player.getCurrentTime() + skipTime, true);
+    });
+
+    return () => {
+      ms.setActionHandler('play', null);
+      ms.setActionHandler('pause', null);
+      ms.setActionHandler('previoustrack', null);
+      ms.setActionHandler('nexttrack', null);
+      ms.setActionHandler('seekbackward', null);
+      ms.setActionHandler('seekforward', null);
+    };
+  }, [setIsPlaying, prevTrack, nextTrack]);
+
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setProgress(val);
@@ -187,10 +242,26 @@ export const Player = () => {
             'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl ring-1 ring-white/10',
             isExpanded
               ? 'top-[6vh] left-1/2 -translate-x-1/2 w-full max-w-[800px] max-h-[40vh] aspect-video rounded-3xl shadow-[0_0_80px_rgba(0,245,255,0.1)] z-[110]'
-              : 'bottom-[20px] left-[32px] w-40 h-[90px] rounded-lg hover:scale-105 z-[70]'
+              : 'bottom-[85px] md:bottom-[20px] left-0 md:left-[32px] w-full md:w-40 h-[64px] md:h-[90px] rounded-none md:rounded-lg hover:scale-100 md:hover:scale-105 z-[70] border-y border-white/10 md:border-none'
           )}
           onClick={() => { if (currentTrack) setIsExpanded(true); }}
         >
+          {/* Mobile playback indicator/controls (mini-bar style) */}
+          {!isExpanded && (
+            <div className="absolute inset-0 z-[1] md:hidden bg-bg-sidebar/40 backdrop-blur-md flex items-center px-4 gap-3">
+              <img src={currentTrack?.thumbnail} className="w-12 h-12 rounded-lg object-cover shadow-lg" alt="" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-white truncate">{currentTrack?.title}</p>
+                <p className="text-[11px] text-text-dim truncate">{currentTrack?.artist}</p>
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); togglePause(); }}
+                className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center active:scale-90 transition-transform"
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+              </button>
+            </div>
+          )}
           {currentTrack && (
             <img src={currentTrack.thumbnail} alt={currentTrack.title}
               loading="lazy"
@@ -339,7 +410,7 @@ export const Player = () => {
 
         {/* ══ Footer player bar ══ */}
         <div className={cn(
-          'fixed bottom-0 left-0 right-0 h-[95px] bg-bg-sidebar/95 backdrop-blur-3xl border-t border-glass-border px-8 flex items-center justify-between z-50 transition-transform duration-500',
+          'fixed bottom-0 left-0 right-0 h-[95px] bg-bg-sidebar/95 backdrop-blur-3xl border-t border-glass-border px-8 hidden md:flex items-center justify-between z-50 transition-transform duration-500',
           (isExpanded || !currentTrack) ? 'translate-y-full' : 'translate-y-0'
         )}>
           {/* Left: track info */}
