@@ -481,7 +481,7 @@ async function startServer() {
   });
 
   // ── Your Mix ─────────────────────────────────────────────────────────────────
-  app.get("/api/mix", requireAuth, async (req: any, res: any) => {
+  app.get("/api/mix", isAuthenticated, async (req: any, res: any) => {
     try {
       // Get top artists from history
       const history = db.prepare("SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5").all(req.session.userId) as any[];
