@@ -21,6 +21,7 @@ export const Player = () => {
   const ytPlayerRef = useRef<any>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [isYTReady, setIsYTReady] = useState(false); // New: Tracks raw onReady event
   const [playerError, setPlayerError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,6 +77,8 @@ export const Player = () => {
           onReady: () => {
             console.log('[YT] Player ready');
             ytPlayerRef.current = player;
+            setIsYTReady(true);
+            updateIsReady(true); // Immediate readiness to hide spinner
             try { player.setVolume(Math.round(volume * 100)); if (isMuted) player.mute(); } catch (_) {}
           },
           onStateChange: (e: any) => {
@@ -94,7 +97,6 @@ export const Player = () => {
                 player.playVideo();
               } else {
                 setIsPlaying(false); clearProgress(); setProgress(0);
-                // Auto-play next from queue or intelligent context
                 nextTrack();
               }
             }
@@ -105,17 +107,20 @@ export const Player = () => {
           },
         },
       });
-      ytPlayerRef.current = player;
+      // Do NOT set ytPlayerRef.current here synchronously; wait for onReady
     });
     return () => { destroyed = true; clearProgress(); try { ytPlayerRef.current?.destroy(); } catch (_) {} };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Single robust effect to handle track loading and initial restoration
   useEffect(() => {
-    if (!currentTrack?.videoId) return;
-    updateIsReady(false); setPlayerError(false);
-    
-    // Resume from persisted progress on first load, otherwise start at 0
+    const player = ytPlayerRef.current;
+    if (!player || !isYTReady || !currentTrack?.videoId) return;
+
+    setPlayerError(false);
+    updateIsReady(false); // Show spinner while loading actual video context
+
     let startSeconds = 0;
     if (isFirstLoad.current) {
       startSeconds = Math.floor((progress || 0) * (duration || 0));
@@ -125,9 +130,9 @@ export const Player = () => {
     }
     
     clearProgress();
-    const player = ytPlayerRef.current;
-    if (!player) return;
     try { 
+      // If we are recovering a session and it was playing, load it.
+      // Otherwise cue it so it doesn't autoplay without user intent.
       if (isPlaying) {
         player.loadVideoById({ videoId: currentTrack.videoId, startSeconds }); 
       } else {
@@ -136,15 +141,24 @@ export const Player = () => {
     }
     catch (err) { console.error('[YT] loadVideoById error:', err); setPlayerError(true); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTrack?.videoId]);
+  }, [currentTrack?.videoId, isYTReady]);
 
+  // Handle Play/Pause commands ONLY when player is ready
   useEffect(() => {
     const player = ytPlayerRef.current;
-    if (!player || !isReady) return;
-    try { if (isPlaying) { player.playVideo(); startProgress(); } else { player.pauseVideo(); clearProgress(); } }
+    if (!player || !isYTReady || !isReady) return;
+    try { 
+      if (isPlaying) { 
+        player.playVideo(); 
+        startProgress(); 
+      } else { 
+        player.pauseVideo(); 
+        clearProgress(); 
+      } 
+    }
     catch (_) {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, isReady]);
+  }, [isPlaying, isReady, isYTReady]);
 
   useEffect(() => {
     const player = ytPlayerRef.current;
@@ -179,6 +193,7 @@ export const Player = () => {
         >
           {currentTrack && (
             <img src={currentTrack.thumbnail} alt={currentTrack.title}
+              loading="lazy"
               className={cn('absolute inset-0 w-full h-full object-cover transition-all duration-700 z-0',
                 isPlaying ? isExpanded ? 'opacity-30 scale-100' : 'opacity-20 scale-105' : 'opacity-40 scale-100')}
             />
@@ -225,14 +240,7 @@ export const Player = () => {
                 </div>
 
                 <div className="flex flex-col gap-1.5 mb-5 shrink-0">
-                  <div className="flex justify-between items-center text-[10px] lg:text-xs font-mono font-bold text-text-dim px-2">
-                    <span>{formatTime((progress || 0) * duration)}</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
-                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" style={{ width: `${(progress || 0) * 100}%` }} />
-                    <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                  </div>
+                  <PlaybackProgress onSeek={handleSeek} formatTime={formatTime} isExpanded />
                 </div>
 
                 <div className="flex items-center justify-center gap-8 lg:gap-14 mb-6 lg:mb-8 shrink-0">
@@ -357,14 +365,7 @@ export const Player = () => {
                 {repeatMode === 'one' && <span className="absolute -top-1.5 -right-1.5 text-[8px] font-black bg-bg-main rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>}
               </button>
             </div>
-            <div className="flex items-center gap-4 w-full">
-              <span className="text-[10px] text-text-dim w-10 text-right font-bold font-mono">{formatTime((progress || 0) * duration)}</span>
-              <div className="flex-1 h-1.5 bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
-                <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" style={{ width: `${(progress || 0) * 100}%` }} />
-                <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={handleSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-              </div>
-              <span className="text-[10px] text-text-dim w-10 font-bold font-mono">{formatTime(duration)}</span>
-            </div>
+            <PlaybackProgress onSeek={handleSeek} formatTime={formatTime} />
           </div>
 
           {/* Right: volume + queue */}
@@ -387,7 +388,10 @@ export const Player = () => {
                 {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
               <div className="w-24 h-1.5 bg-white/5 rounded-full relative overflow-hidden">
-                <div className="absolute top-0 left-0 h-full bg-text-main rounded-full" style={{ width: `${(isMuted ? 0 : volume) * 100}%` }} />
+              <div 
+                className="absolute top-0 left-0 h-full bg-text-main rounded-full" 
+                style={{ '--width': `${(isMuted ? 0 : volume) * 100}%` } as React.CSSProperties} 
+              />
                 <input type="range" min={0} max={1} step="any" value={isMuted ? 0 : volume}
                   onChange={(e) => { setVolume(parseFloat(e.target.value)); if (isMuted) setIsMuted(false); }}
                   aria-label="Volume" title="Adjust volume"
@@ -401,6 +405,57 @@ export const Player = () => {
         </div>
 
       </div>
+    </div>
+  );
+};
+
+// ─── Sub-components for Optimization ───────────────────────────────────────
+
+/** 
+ * Isolated progress bar that only re-renders on progress/duration changes.
+ * This prevents the entire Player shell from re-rendering every 500ms.
+ */
+const PlaybackProgress = ({ 
+  onSeek, 
+  formatTime,
+  isExpanded = false 
+}: { 
+  onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  formatTime: (s: number) => string;
+  isExpanded?: boolean;
+}) => {
+  const progress = usePlayerStore(s => s.progress);
+  const duration = usePlayerStore(s => s.duration);
+
+  if (isExpanded) {
+    return (
+      <>
+        <div className="flex justify-between items-center text-[10px] lg:text-xs font-mono font-bold text-text-dim px-2">
+          <span>{formatTime((progress || 0) * duration)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+        <div className="h-1.5 w-full bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
+          <div 
+            className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" 
+            style={{ '--width': `${(progress || 0) * 100}%` } as React.CSSProperties} 
+          />
+          <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4 w-full">
+      <span className="text-[10px] text-text-dim w-10 text-right font-bold font-mono">{formatTime((progress || 0) * duration)}</span>
+      <div className="flex-1 h-1.5 bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
+        <div 
+          className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10" 
+          style={{ '--width': `${(progress || 0) * 100}%` } as React.CSSProperties} 
+        />
+        <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+      </div>
+      <span className="text-[10px] text-text-dim w-10 font-bold font-mono">{formatTime(duration)}</span>
     </div>
   );
 };

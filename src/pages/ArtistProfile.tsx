@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2, Heart, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2, Heart, MoreHorizontal, Search as SearchIcon } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
+import { searchTracks } from '../services/api';
 import { TrackDropdown } from '../components/Search';
+import { HeroSkeleton, TrackRowSkeleton } from '../components/Skeletons';
 import { cn } from '../lib/utils';
 
 export const ArtistProfile = () => {
@@ -15,6 +17,10 @@ export const ArtistProfile = () => {
   const [loading, setLoading] = useState(true);
   const [thumbnail, setThumbnail] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   React.useEffect(() => {
     const h = () => setActiveDropdown(null);
@@ -35,7 +41,37 @@ export const ArtistProfile = () => {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [artistName]);
+  }, [artistName, thumbnail]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await searchTracks(`${artistName} ${searchQuery}`);
+        setSearchResults(results);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [searchQuery, artistName]);
+
+  const displayTracks = searchQuery.trim() ? searchResults : tracks;
+
+  if (loading) return (
+    <div className="flex-1 overflow-y-auto custom-scrollbar bg-bg-main pb-36">
+      <HeroSkeleton />
+      <div className="px-10 py-10 space-y-4">
+        {[1,2,3,4,5,6,7,8].map((i, idx) => <TrackRowSkeleton key={i} index={idx} />)}
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36">
@@ -43,7 +79,13 @@ export const ArtistProfile = () => {
       <div className="relative h-72 px-10 flex flex-col justify-end overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-bg-main z-10" />
         {thumbnail && (
-          <img src={thumbnail} className="absolute inset-0 w-full h-full object-cover opacity-20 scale-110 blur-sm" alt="" />
+          <img 
+            src={thumbnail} 
+            loading="lazy" 
+            onLoad={(e) => (e.currentTarget.style.opacity = '0.2')}
+            className="absolute inset-0 w-full h-full object-cover opacity-0 scale-110 blur-sm transition-opacity duration-1000" 
+            alt="" 
+          />
         )}
 
         <button
@@ -57,7 +99,7 @@ export const ArtistProfile = () => {
         <div className="relative z-20 flex items-end gap-6 pb-6">
           <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-white/20 shadow-2xl shrink-0">
             {thumbnail ? (
-              <img src={thumbnail} className="w-full h-full object-cover" alt={artistName} />
+              <img src={thumbnail} loading="lazy" className="w-full h-full object-cover" alt={artistName} />
             ) : (
               <div className="w-full h-full bg-white/10 flex items-center justify-center">
                 <Mic2 className="w-14 h-14 text-text-dim" />
@@ -102,23 +144,40 @@ export const ArtistProfile = () => {
 
       {/* Tracks */}
       <div className="px-10 py-6">
-        <h2 className="text-xl font-black text-white mb-5 tracking-tight">Songs</h2>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-accent animate-spin" />
-            <span className="ml-3 text-text-dim">Loading songs...</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <h2 className="text-xl font-black text-white tracking-tight">
+            {searchQuery.trim() ? `Search results for "${searchQuery}"` : 'Top Songs'}
+          </h2>
+          
+          <div className="relative group max-w-sm w-full">
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim group-focus-within:text-accent transition-colors" />
+            <input
+              type="text"
+              placeholder={`Search songs from ${artistName}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label={`Search songs from ${artistName}`}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-accent/50 focus:bg-white/8 transition-all text-sm placeholder:text-text-dim/50"
+            />
           </div>
-        ) : tracks.length === 0 ? (
-          <p className="text-center text-text-dim py-16">No songs found for this artist</p>
+        </div>
+
+        {isSearching && searchQuery.trim() ? (
+          <div className="space-y-1">
+            {[1,2,3,4,5].map((i, idx) => <TrackRowSkeleton key={i} index={idx} />)}
+          </div>
+        ) : displayTracks.length === 0 ? (
+          <p className="text-center text-text-dim py-16">
+            {searchQuery.trim() ? `No results found for "${searchQuery}"` : 'No songs found for this artist'}
+          </p>
         ) : (
           <div className="space-y-1">
-            {tracks.map((track, index) => {
+            {displayTracks.map((track, index) => {
               const isActive = currentTrack?.id === track.id;
               return (
                 <div
                   key={`${track.id}-${index}`}
-                  onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
+                  onClick={() => isActive ? togglePause() : playTrack(track, displayTracks)}
                   className={cn(
                     'grid grid-cols-[40px_1fr_80px_40px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
@@ -128,7 +187,14 @@ export const ArtistProfile = () => {
                     {isActive && isPlaying ? (
                       <div className="flex gap-[2px] items-end h-4">
                         {[1,2,3].map((i) => (
-                          <div key={i} className="w-[3px] bg-accent rounded-full animate-bounce" style={{ height: `${8 + i * 4}px`, animationDelay: `${i * 0.1}s` }} />
+                          <div 
+                            key={i} 
+                            className="w-[3px] bg-accent rounded-full animate-bounce" 
+                            style={{ 
+                              '--height': `${8 + i * 4}px`, 
+                              '--delay': `${i * 0.1}s` 
+                            } as React.CSSProperties} 
+                          />
                         ))}
                       </div>
                     ) : (
@@ -142,7 +208,13 @@ export const ArtistProfile = () => {
                   </div>
 
                   <div className="flex items-center gap-4 min-w-0">
-                    <img src={track.thumbnail} className="w-11 h-11 rounded-xl object-cover shadow-lg shrink-0" alt="" />
+                    <img 
+                      src={track.thumbnail} 
+                      loading="lazy" 
+                      onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+                      className="w-11 h-11 rounded-xl object-cover shadow-lg shrink-0 opacity-0 transition-opacity duration-500" 
+                      alt="" 
+                    />
                     <div className="min-w-0">
                       <p className={cn('text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
                       <p className="text-xs text-text-dim font-medium truncate">{track.duration}</p>

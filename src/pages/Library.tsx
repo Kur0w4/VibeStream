@@ -122,14 +122,19 @@ export const Library = () => {
                         : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10'
                     )}
                   >
-                    <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0">
-                      <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover" />
+                    <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0 bg-white/5">
+                      <img 
+                        src={track.thumbnail} 
+                        alt={track.title} 
+                        onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+                        className="w-full h-full object-cover opacity-0 transition-opacity duration-500" 
+                      />
                       <div className={cn('absolute inset-0 bg-black/50 transition-opacity flex items-center justify-center', isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
                         {isActive && isPlaying ? (
                            <div className="flex gap-[2px] items-end h-3">
                               <div className="w-[2px] h-3 bg-white animate-bounce" />
-                              <div className="w-[2px] h-2 bg-white animate-bounce" style={{ animationDelay: '0.1s' }} />
-                              <div className="w-[2px] h-3 bg-white animate-bounce" style={{ animationDelay: '0.2s' }} />
+                              <div className="w-[2px] h-2 bg-white animate-bounce" style={{ '--delay': '0.1s' } as React.CSSProperties} />
+                              <div className="w-[2px] h-3 bg-white animate-bounce" style={{ '--delay': '0.2s' } as React.CSSProperties} />
                            </div>
                         ) : (
                           <Play className="w-5 h-5 text-white fill-white" />

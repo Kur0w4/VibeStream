@@ -11,11 +11,11 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#1e293b,#020617)]" />
       </div>
 
-      <Sidebar />
+      <Sidebar className="will-change-transform contain-layout" />
       
-      <main className="flex-1 flex flex-col relative overflow-hidden z-10">
+      <main className="flex-1 flex flex-col relative overflow-hidden z-10 contain-paint">
         <TopBar />
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-32">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-32 will-change-scroll">
           {children}
         </div>
       </main>

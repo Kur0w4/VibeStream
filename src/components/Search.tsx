@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap } from 'lucide-react';
 import { searchTracks, getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
+import { TrackCardSkeleton, HistorySkeleton } from './Skeletons';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -115,65 +116,7 @@ export const Search = () => {
 
   const quickPicks = listeningHistory.slice(0, 6);
 
-  // ─── Card component ────────────────────────────────────────────────────────
-  const TrackCard = ({ track }: { track: Track }) => {
-    const isActive = currentTrack?.id === track.id;
-    const liked = likedSongs?.some((t) => t.id === track.id);
-    return (
-      <div
-        onClick={() => isActive ? togglePause() : playTrack(track, results)}
-        className={cn(
-          'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all duration-300 hover:scale-[1.02] z-0 hover:z-10',
-          isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
-        )}
-      >
-        {/* Thumbnail */}
-        <div className="relative aspect-square overflow-hidden rounded-t-[23px]">
-          <img src={track.thumbnail} alt={track.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          <div className={cn(
-            'absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200',
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          )}>
-            <div className={cn(
-              'w-12 h-12 bg-accent text-black rounded-full flex items-center justify-center shadow-xl transition-transform duration-300',
-              isActive ? 'scale-100' : 'scale-75 group-hover:scale-100'
-            )}>
-              {isActive && isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-            </div>
-          </div>
-          {/* Like badge */}
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
-            title={liked ? "Unlike" : "Like"}
-            aria-label={liked ? "Unlike song" : "Like song"}
-            className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
-          >
-            <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-white')} />
-          </button>
-        </div>
-
-        {/* Info */}
-        <div className="p-3 flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className={cn('text-sm font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
-            <p className="text-xs text-text-dim truncate mt-0.5 font-medium">{track.artist}</p>
-          </div>
-          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-              title="More options"
-              aria-label="More options"
-              className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-            {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
+  // ─── Main Grid logic ───
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36">
       {/* Sticky search header */}
@@ -209,58 +152,74 @@ export const Search = () => {
         )}
 
         {/* ─── QUICK PICKS (history grid) ─── */}
-        {!query && quickPicks.length > 0 && (
+        {!query && (
           <section>
             <h2 className="text-xl font-black text-white tracking-tight mb-4">Jump back in</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              {quickPicks.map((track, index) => {
-                const isActive = currentTrack?.id === track.id;
-                const liked = likedSongs?.some((t) => t.id === track.id);
-                return (
-                  <div
-                    key={`${track.id}-${index}`}
-                    onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border relative',
-                      isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
-                    )}
-                  >
-                    <img src={track.thumbnail} className="w-16 h-16 object-cover shrink-0" alt="" />
-                    <div className="flex-1 min-w-0 pr-2">
-                       <p className="font-bold text-sm text-white truncate leading-none">{track.title}</p>
-                       <p className="text-[10px] text-text-dim mt-1 truncate font-medium">{track.artist}</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5 mr-3">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
-                        title={liked ? "Unlike" : "Like"}
-                        aria-label={liked ? "Unlike song" : "Like song"}
-                        className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', liked ? 'opacity-100' : '')}
-                      >
-                        <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
-                      </button>
-                      
-                      <div className="relative" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-                          title="More options"
-                          aria-label="More options"
-                          className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+            {loading ? (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => <HistorySkeleton key={i} index={i} />)}
+              </div>
+            ) : quickPicks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                <p className="text-text-dim text-sm italic">Nothing played yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {quickPicks.map((track, index) => {
+                      const isActive = currentTrack?.id === track.id;
+                      const liked = likedSongs?.some((t) => t.id === track.id);
+                      return (
+                        <div
+                          key={`${track.id}-${index}`}
+                          onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
+                          className={cn(
+                            'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border relative',
+                            isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
+                          )}
                         >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                        {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
-                      </div>
+                          <img 
+                            src={track.thumbnail} 
+                            loading="lazy" 
+                            onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+                            className="w-16 h-16 object-cover shrink-0 opacity-0 transition-opacity duration-500" 
+                            alt="" 
+                          />
+                          <div className="flex-1 min-w-0 pr-2">
+                             <p className="font-bold text-sm text-white truncate leading-none">{track.title}</p>
+                             <p className="text-[10px] text-text-dim mt-1 truncate font-medium">{track.artist}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 mr-3">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+                              title={liked ? "Unlike" : "Like"}
+                              aria-label={liked ? "Unlike song" : "Like song"}
+                              className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', liked ? 'opacity-100' : '')}
+                            >
+                              <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
+                            </button>
+                            
+                            <div className="relative" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                                title="More options"
+                                aria-label="More options"
+                                className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                              {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                            </div>
 
-                      <div className={cn('opacity-0 group-hover:opacity-0 transition-opacity', isActive && 'opacity-100')}>
-                        {isActive && isPlaying ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                            <div className={cn('opacity-0 group-hover:opacity-0 transition-opacity', isActive && 'opacity-100')}>
+                              {isActive && isPlaying ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+              </div>
+            )}
           </section>
         )}
 
@@ -304,14 +263,27 @@ export const Search = () => {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => <TrackCardSkeleton key={i} index={i} />)}
             </div>
           ) : results.length === 0 ? (
             <p className="text-text-dim text-center py-16 font-medium">No results found for "{query}"</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {results.map((track, index) => <TrackCard key={`${track.id}-${index}`} track={track} />)}
+              {results.slice(0, 48).map((track, index) => (
+                <div 
+                  key={`${track.id}-${index}`} 
+                  className="animate-fade-in" 
+                  style={{ '--delay': `${(index % 12) * 50}ms` } as React.CSSProperties}
+                >
+                  <TrackCard 
+                    track={track} 
+                    results={results}
+                    activeDropdown={activeDropdown}
+                    setActiveDropdown={setActiveDropdown}
+                  />
+                </div>
+              ))}
             </div>
           )}
         </section>
@@ -319,3 +291,85 @@ export const Search = () => {
     </div>
   );
 };
+
+// ─── Sub-components for Optimization ───────────────────────────────────────
+
+/** 
+ * Memoized Track Card to prevent re-renders when other items or query change.
+ * Extracted from main component to follow performance best practices.
+ */
+const TrackCard = memo(({ 
+  track, 
+  results,
+  activeDropdown,
+  setActiveDropdown
+}: { 
+  track: Track; 
+  results: Track[];
+  activeDropdown: string | null;
+  setActiveDropdown: (id: string | null) => void;
+}) => {
+  const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, toggleLike } = usePlayerStore();
+  const isActive = currentTrack?.id === track.id;
+  const liked = likedSongs?.some((t) => t.id === track.id);
+
+  return (
+    <div
+      onClick={() => isActive ? togglePause() : playTrack(track, results)}
+      className={cn(
+        'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all duration-300 hover:scale-[1.02] z-0 hover:z-10',
+        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
+      )}
+    >
+      {/* Thumbnail */}
+      <div className="relative aspect-square overflow-hidden rounded-t-[23px]">
+        <img 
+          src={track.thumbnail} 
+          alt={track.title} 
+          loading="lazy"
+          onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700 opacity-0" 
+        />
+        <div className={cn(
+          'absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200',
+          isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        )}>
+          <div className={cn(
+            'w-12 h-12 bg-accent text-black rounded-full flex items-center justify-center shadow-xl transition-transform duration-300',
+            isActive ? 'scale-100' : 'scale-75 group-hover:scale-100'
+          )}>
+            {isActive && isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+          </div>
+        </div>
+        {/* Like badge */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
+          title={liked ? "Unlike" : "Like"}
+          aria-label={liked ? "Unlike song" : "Like song"}
+          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+        >
+          <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-white')} />
+        </button>
+      </div>
+
+      {/* Info */}
+      <div className="p-3 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className={cn('text-sm font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
+          <p className="text-xs text-text-dim truncate mt-0.5 font-medium">{track.artist}</p>
+        </div>
+        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+            title="More options"
+            aria-label="More options"
+            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+        </div>
+      </div>
+    </div>
+  );
+});

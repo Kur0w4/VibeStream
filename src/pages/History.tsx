@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Heart, Play, Pause, Clock, MoreHorizontal, Search as SearchIcon, Shuffle } from 'lucide-react';
+import { Clock, Play, Pause, MoreHorizontal, Search as SearchIcon, Shuffle, Trash2 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { TrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
-export const LikedSongs = () => {
-  const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, user } = usePlayerStore();
+export const History = () => {
+  const { playTrack, currentTrack, isPlaying, togglePause, listeningHistory, user } = usePlayerStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
@@ -16,31 +16,32 @@ export const LikedSongs = () => {
     return () => window.removeEventListener('click', h);
   }, []);
 
-  const filtered = likedSongs.filter((t) =>
+  const filtered = listeningHistory.filter((t) =>
     !searchQuery.trim() ||
     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.artist.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const playAll = () => { if (filtered.length > 0) playTrack(filtered[0]); };
+  const playAll = () => { if (filtered.length > 0) playTrack(filtered[0], filtered); };
   const playShuffle = () => {
     if (filtered.length === 0) return;
     const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    playTrack(shuffled[0]);
+    playTrack(shuffled[0], shuffled);
   };
 
   const displayName = user?.username ?? 'You';
 
   return (
-    <div className="flex-1 bg-gradient-to-b from-rose-900/30 via-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
+    <div className="flex-1 bg-gradient-to-b from-blue-900/20 via-bg-main to-black overflow-y-auto custom-scrollbar pb-36">
       {/* Hero Header */}
-      <div className="px-10 py-14 flex items-end gap-8">
-        <div className="w-52 h-52 bg-gradient-to-br from-rose-500 to-red-700 rounded-[36px] shadow-[0_20px_50px_rgba(244,63,94,0.3)] flex items-center justify-center p-12 shrink-0">
-          <Heart className="w-full h-full text-white fill-white drop-shadow-2xl" />
+      <div className="px-10 py-14 flex items-end gap-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 to-transparent pointer-events-none" />
+        <div className="w-52 h-52 bg-gradient-to-br from-blue-600 to-cyan-700 rounded-[36px] shadow-[0_20px_50px_rgba(37,99,235,0.3)] flex items-center justify-center p-12 shrink-0 relative z-10">
+          <Clock className="w-full h-full text-white drop-shadow-2xl" />
         </div>
-        <div className="mb-2">
-          <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.4em]">Playlist</span>
-          <h1 className="text-7xl font-black text-white mt-2 tracking-tighter">Liked Songs</h1>
+        <div className="mb-2 relative z-10">
+          <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em]">Personal Space</span>
+          <h1 className="text-7xl font-black text-white mt-2 tracking-tighter">Listening History</h1>
           <div className="flex items-center gap-2 mt-5">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-blue-500 flex items-center justify-center">
               <span className="text-[10px] font-black text-black">{displayName.slice(0, 1).toUpperCase()}</span>
@@ -48,7 +49,7 @@ export const LikedSongs = () => {
             <span className="text-sm font-black text-white">{displayName}</span>
             <span className="w-1 h-1 bg-white/30 rounded-full" />
             <span className="text-sm font-medium text-text-dim">
-              {likedSongs.length} song{likedSongs.length !== 1 ? 's' : ''}
+              {listeningHistory.length} track{listeningHistory.length !== 1 ? 's' : ''} recorded
             </span>
           </div>
         </div>
@@ -59,22 +60,19 @@ export const LikedSongs = () => {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={playAll}
-            disabled={likedSongs.length === 0}
-            title="Play all"
+            disabled={listeningHistory.length === 0}
+            title="Play history from start"
             className="w-14 h-14 bg-accent text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-40"
           >
             <Play className="w-7 h-7 fill-current ml-0.5" />
           </button>
           <button
             onClick={playShuffle}
-            disabled={likedSongs.length === 0}
-            title="Shuffle play"
+            disabled={listeningHistory.length === 0}
+            title="Shuffle history"
             className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all disabled:opacity-40"
           >
             <Shuffle className="w-6 h-6" />
-          </button>
-          <button title="More actions" className="p-3 rounded-full hover:bg-white/5 text-text-dim hover:text-white transition-all">
-            <MoreHorizontal className="w-6 h-6" />
           </button>
 
           {/* Search */}
@@ -84,8 +82,8 @@ export const LikedSongs = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in liked songs"
-              className="bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-text-dim/50 outline-none focus:border-accent/50 focus:bg-white/8 transition-all w-52"
+              placeholder="Search in history"
+              className="bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-text-dim/50 outline-none focus:border-accent/50 focus:bg-white/8 transition-all w-64"
             />
           </div>
         </div>
@@ -94,18 +92,18 @@ export const LikedSongs = () => {
         <div className="grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-6 py-3 border-b border-white/5 text-[10px] font-black text-text-dim uppercase tracking-widest mb-2">
           <span className="text-center">#</span>
           <span>Title</span>
-          <span>Album</span>
+          <span>Artist</span>
           <span className="text-center"><Clock className="w-4 h-4 mx-auto" /></span>
           <span />
         </div>
 
         {/* Track list */}
         <div className="space-y-1">
-          {likedSongs.length === 0 ? (
-            <div className="text-center py-20">
-              <Heart className="w-12 h-12 mx-auto mb-4 text-rose-500/30" />
-              <p className="text-text-dim font-medium italic">No liked songs yet.</p>
-              <p className="text-text-dim text-sm mt-1">Like tracks from the Home or Trends tabs</p>
+          {listeningHistory.length === 0 ? (
+            <div className="text-center py-20 bg-white/3 rounded-[32px] border border-white/5">
+              <Clock className="w-12 h-12 mx-auto mb-4 text-blue-500/30" />
+              <p className="text-text-dim font-medium italic">No history recorded yet.</p>
+              <p className="text-text-dim text-sm mt-1">Tracks you play will appear here</p>
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-center py-10 text-text-dim font-medium italic">No songs match "{searchQuery}"</p>
@@ -118,7 +116,7 @@ export const LikedSongs = () => {
                   onClick={() => isActive ? togglePause() : playTrack(track, filtered)}
                   className={cn(
                     'grid grid-cols-[40px_1fr_1fr_100px_40px] gap-4 px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
-                    isActive ? 'bg-rose-500/10 border border-rose-500/20' : 'hover:bg-white/5 border border-transparent'
+                    isActive ? 'bg-blue-500/10 border border-blue-500/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
                   <div className="text-center">
@@ -127,7 +125,7 @@ export const LikedSongs = () => {
                         {[1,2,3].map((i) => (
                           <div 
                             key={i} 
-                            className="w-[3px] bg-rose-400 rounded-full animate-bounce" 
+                            className="w-[3px] bg-accent rounded-full animate-bounce" 
                             style={{ 
                               '--height': `${8 + i * 4}px`, 
                               '--delay': `${i * 0.1}s` 
@@ -139,7 +137,7 @@ export const LikedSongs = () => {
                       <>
                         <span className={cn('text-xs font-bold text-text-dim group-hover:hidden', isActive && 'hidden')}>{index + 1}</span>
                         <div className={cn('hidden group-hover:flex justify-center', isActive && 'flex')}>
-                          {isActive ? <Pause className="w-4 h-4 text-rose-400 fill-current" /> : <Play className="w-4 h-4 text-rose-400 fill-current" />}
+                          {isActive ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
                         </div>
                       </>
                     )}
@@ -148,12 +146,12 @@ export const LikedSongs = () => {
                   <div className="flex items-center gap-4 min-w-0">
                     <img src={track.thumbnail} className="w-10 h-10 rounded-xl shadow-lg shrink-0 object-cover" alt="" />
                     <div className="min-w-0">
-                      <p className={cn('text-sm font-bold truncate', isActive ? 'text-rose-400' : 'text-white')}>{track.title}</p>
+                      <p className={cn('text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
                       <p className="text-xs text-text-dim font-medium truncate">{track.artist}</p>
                     </div>
                   </div>
 
-                  <span className="text-xs text-text-dim font-medium truncate">YouTube Music</span>
+                  <span className="text-xs text-text-dim font-medium truncate">{track.artist}</span>
                   <span className="text-xs text-text-dim font-mono text-center font-bold">{track.duration}</span>
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>

@@ -37,16 +37,48 @@
     align-items: flex-end;
     gap: 2px;
     height: 16px;
+    contain: layout size; /* Performance hint */
   }
   .wave-bar {
     width: 3px;
     background: var(--color-accent);
     border-radius: 2px;
+    transform-origin: bottom;
     animation: wave 0.8s ease-in-out infinite alternate;
+    height: 16px; /* Base height */
+    will-change: transform;
   }
+  
+  /* CRITICAL PERFORMANCE FIX: Use scaleY instead of height to avoid reflows */
   @keyframes wave {
-    from { height: 4px; }
-    to { height: 16px; }
+    from { transform: scaleY(0.2); }
+    to { transform: scaleY(1); }
   }
+
+  @keyframes shimmer {
+    100% { transform: translate3d(100%, 0, 0); }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 1.5s infinite;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translate3d(0, 10px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out forwards;
+    will-change: opacity, transform;
+    /* Use CSS variable for delay to avoid inline style warnings */
+    animation-delay: var(--delay, 0ms);
+  }
+
+  /* Universal variable utilities to avoid inline style warnings */
+  [style*="--width"] { width: var(--width); }
+  [style*="--height"] { height: var(--height); }
 }
 

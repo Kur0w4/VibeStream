@@ -21,12 +21,12 @@ const SidebarItem = ({ icon: Icon, label, to }: { icon: any; label: string; to: 
   </NavLink>
 );
 
-export const Sidebar = () => {
+export const Sidebar = ({ className }: { className?: string }) => {
   const navigate = useNavigate();
 
   return (
     <>
-      <div className="w-[var(--sidebar-width)] h-full bg-bg-sidebar border-r border-white/5 flex flex-col p-6 hidden md:flex z-20">
+      <div className={cn("w-[var(--sidebar-width)] h-full bg-bg-sidebar border-r border-white/5 flex flex-col p-6 hidden md:flex z-20", className)}>
 
         {/* Logo — click goes to Home */}
         <button

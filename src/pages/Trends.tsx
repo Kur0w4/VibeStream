@@ -86,11 +86,11 @@ export const Trends = () => {
               >
                 <div className="flex items-center justify-center">
                    {currentTrack?.id === track.id && isPlaying ? (
-                     <div className="wave-container scale-75">
-                       <div className="wave-bar" />
-                       <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
-                       <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
-                     </div>
+                      <div className="wave-container scale-75">
+                        <div className="wave-bar" />
+                        <div className="wave-bar" style={{ '--delay': '0.1s' } as React.CSSProperties} />
+                        <div className="wave-bar" style={{ '--delay': '0.2s' } as React.CSSProperties} />
+                      </div>
                    ) : (
                      <span className="text-xs font-bold text-text-dim group-hover:hidden">{index + 1}</span>
                    )}

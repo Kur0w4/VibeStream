@@ -22,8 +22,8 @@ export const TopBar = () => {
   };
 
   return (
-    <>
-      <div className="absolute top-8 right-8 z-[100]">
+    <header className="sticky top-0 z-[100] w-full px-8 py-5 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[90px] shrink-0">
+      <div className="flex items-center gap-4">
         {!user ? (
           <button
             onClick={() => setShowAuth(true)}
@@ -46,7 +46,7 @@ export const TopBar = () => {
 
             {/* Settings Dropdown */}
             {showMenu && (
-              <div className="absolute right-0 top-[110%] w-56 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2">
+              <div className="absolute right-0 top-[115%] w-56 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl py-2 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-2">
                 <div className="px-4 py-3 border-b border-white/5">
                   <p className="text-sm font-bold text-white truncate">{user.username}</p>
                   <p className="text-xs text-text-dim">Premium User</p>
@@ -76,6 +76,6 @@ export const TopBar = () => {
       </div>
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-    </>
+    </header>
   );
 };

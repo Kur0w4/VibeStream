@@ -231,7 +231,14 @@ export const PlaylistDetail = () => {
                     {isActive && isPlaying ? (
                       <div className="flex gap-[2px] items-end h-4">
                         {[1,2,3].map((i) => (
-                          <div key={i} className="w-[3px] bg-accent rounded-full animate-bounce" style={{ height: `${8 + i * 4}px`, animationDelay: `${i * 0.1}s` }} />
+                          <div 
+                            key={i} 
+                            className="w-[3px] bg-accent rounded-full animate-bounce" 
+                            style={{ 
+                              '--height': `${8 + i * 4}px`, 
+                              '--delay': `${i * 0.1}s` 
+                            } as React.CSSProperties} 
+                          />
                         ))}
                       </div>
                     ) : (
