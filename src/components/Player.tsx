@@ -20,6 +20,7 @@ export const Player = () => {
   } = usePlayerStore();
 
   const ytPlayerRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [isYTReady, setIsYTReady] = useState(false); // New: Tracks raw onReady event
@@ -161,9 +162,11 @@ export const Player = () => {
       if (isPlaying) { 
         player.playVideo(); 
         startProgress(); 
+        audioRef.current?.play().catch(() => {});
       } else { 
         player.pauseVideo(); 
         clearProgress(); 
+        audioRef.current?.pause();
       } 
     }
     catch (_) {}
@@ -249,8 +252,11 @@ export const Player = () => {
 
   // ─── UI ───────────────────────────────────────────────────────────────────
 
+  const SILENT_AUDIO_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
   return (
     <div className={cn('fixed inset-0 pointer-events-none z-50', !currentTrack && 'opacity-0')}>
+      <audio ref={audioRef} src={SILENT_AUDIO_URI} loop playsInline style={{ display: 'none' }} />
       <div className="pointer-events-auto">
 
         {/* ══ YouTube Player container ══ */}
@@ -293,12 +299,17 @@ export const Player = () => {
             </div>
           )}
           {!isReady && !playerError && currentTrack && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-white/30 border-t-accent rounded-full animate-spin" />
+            <div className={cn("absolute z-20 flex items-center justify-center", isExpanded ? "inset-0" : "left-4 top-1/2 -translate-y-1/2 w-12 h-12 md:inset-0 md:w-auto md:h-auto md:translate-y-0")}>
+              <div className="w-5 h-5 md:w-6 md:h-6 border-2 border-white/30 border-t-accent rounded-full animate-spin" />
             </div>
           )}
-          <div className={cn('absolute inset-0 z-10 transition-opacity duration-500', isReady ? 'opacity-100' : 'opacity-0')}>
-            <div id={YT_DIV_ID} className="w-full h-full" />
+          <div className={cn('absolute z-10 transition-all duration-500 overflow-hidden', 
+            isReady ? 'opacity-100' : 'opacity-0',
+            isExpanded 
+              ? 'inset-0 rounded-none' 
+              : 'left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-lg pointer-events-none md:pointer-events-auto md:inset-0 md:w-auto md:h-auto md:left-0 md:top-0 md:translate-y-0 md:rounded-none'
+          )}>
+            <div id={YT_DIV_ID} className="w-[150%] h-[150%] -top-1/4 -left-1/4 relative pointer-events-auto md:w-full md:h-full md:top-0 md:left-0" />
           </div>
           {!isExpanded && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/50 backdrop-blur-[1px]">
@@ -306,6 +317,18 @@ export const Player = () => {
             </div>
           )}
         </div>
+
+        {/* ══ MV Close Button (Rendered Outside for max z-index) ══ */}
+        <AnimatePresence>
+          {isExpanded && currentTrack && (
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => setIsExpanded(false)} title="Close expanded view"
+              className="fixed top-8 left-8 md:top-10 md:left-10 p-3 bg-black/40 hover:bg-black/60 rounded-2xl border border-white/10 text-white z-[150] transition-all hover:scale-105 backdrop-blur-md">
+              <ChevronDown className="w-6 h-6 md:w-8 md:h-8" />
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         {/* ══ Expanded view overlay ══ */}
         <AnimatePresence>
@@ -316,10 +339,6 @@ export const Player = () => {
               className="fixed inset-0 z-[100] bg-bg-main/95 backdrop-blur-2xl flex flex-col items-center pt-[6vh] pb-6 px-8 overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-bg-main pointer-events-none" />
-              <button onClick={() => setIsExpanded(false)} title="Close expanded view"
-                className="fixed top-8 left-8 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 text-white z-[120] transition-all hover:scale-105">
-                <ChevronDown className="w-8 h-8" />
-              </button>
               <div className="w-full max-w-[800px] h-[40vh] max-h-[40vh] aspect-video shrink-0 invisible" />
               <div className="mt-4 text-center max-w-[800px] w-full px-4 relative z-50 flex-1 flex flex-col min-h-0">
                 <div className="shrink-0 mb-3">

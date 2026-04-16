@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Search, Compass, Library, Heart, ListMusic } from 'lucide-react';
+import { Home, Compass, Library, Heart, ListMusic } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export const MobileNav = () => {
   const navItems = [
-    { icon: Search, label: 'Search', to: '/' },
+    { icon: Home, label: 'Home', to: '/' },
     { icon: Compass, label: 'Trends', to: '/trends' },
     { icon: Library, label: 'Library', to: '/library' },
     { icon: Heart, label: 'Liked', to: '/liked-songs' },
