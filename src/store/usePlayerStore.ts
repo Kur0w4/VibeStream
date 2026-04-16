@@ -93,6 +93,9 @@ async function apiFetch(url: string, opts?: RequestInit) {
   if (auth.currentUser) {
     const token = await auth.currentUser.getIdToken();
     headers['Authorization'] = `Bearer ${token}`;
+    console.log(`[apiFetch] Including Bearer token for ${auth.currentUser.email}`);
+  } else {
+    console.log(`[apiFetch] No currentUser for ${url}`);
   }
 
   const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;

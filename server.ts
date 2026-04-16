@@ -232,6 +232,20 @@ async function startServer() {
   // Health Check
   app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
 
+  // Debug Session
+  app.get("/api/debug/session", (req: any, res: any) => {
+    res.json({
+      sessionID: req.sessionID,
+      userId: req.session.userId,
+      username: req.session.username,
+      email: req.session.email,
+      headers: {
+        cookie: !!req.headers.cookie,
+        authorization: !!req.headers.authorization
+      }
+    });
+  });
+
   // ── Auth Middleware ──────────────────────────────────────────────────────────
   // Middleware to handle both Session Cookies and Authorization Bearer Tokens (Firebase)
   app.use(async (req: any, res: any, next: any) => {
@@ -244,11 +258,15 @@ async function startServer() {
       // For now, if the session is empty but valid token is provided, we'll try to identify.
       if (token && token.includes('.')) {
         try {
-          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          const base64Payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
+          
           if (payload && (payload.user_id || payload.sub)) {
             const fUid = payload.user_id || payload.sub;
             const email = payload.email || '';
             const name = payload.name || email.split('@')[0] || 'User';
+
+            console.log(`[Auth] Decoding token for: ${email || fUid}`);
 
             // Find or create normalized user in local SQL
             let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
@@ -256,6 +274,7 @@ async function startServer() {
             if (!user) {
               const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
               user = { id: info.lastInsertRowid, username: name, email };
+              console.log(`[Auth] Created new user: ${user.id}`);
             } else if (!user.firebase_uid) {
               db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
             }
@@ -263,6 +282,10 @@ async function startServer() {
             req.session.userId = user.id;
             req.session.username = user.username;
             req.session.email = user.email;
+
+            // Force session save for async middleware
+            await new Promise((resolve) => req.session.save(resolve));
+            console.log(`[Auth] Session established for user ${user.id}`);
           }
         } catch (e) {
           console.error("[Auth] Token decoding error:", e);
