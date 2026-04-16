@@ -88,7 +88,16 @@ export const Player = () => {
               updateIsReady(true); setPlayerError(false); setIsPlaying(true); startProgress();
               try { const dur = player.getDuration?.() ?? 0; if (dur > 0) setDuration(dur); } catch (_) {}
             } else if (state === window.YT.PlayerState.PAUSED) {
-              setIsPlaying(false); clearProgress();
+              const { isPlaying: intendedPlaying, setIsPlaying } = usePlayerStore.getState();
+              if (intendedPlaying && document.hidden) {
+                // Background playback hack: YouTube's iframe API automatically pauses video when the browser tab is hidden on mobile.
+                // If our app state says we should be playing, we immediately force it to resume.
+                setTimeout(() => {
+                  try { player.playVideo(); } catch (_) {}
+                }, 50);
+              } else {
+                setIsPlaying(false); clearProgress();
+              }
             } else if (state === window.YT.PlayerState.CUED) {
               updateIsReady(true);
             } else if (state === window.YT.PlayerState.ENDED) {

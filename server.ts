@@ -120,14 +120,21 @@ function mapVideo(video: any) {
     artist = artist.slice(0, -8);
   }
 
-  // Sometimes artists put "Artist - Title" in the video title.
-  // We can try to extract artist if the channel name is generic.
+  // Sometimes artists put "Artist - Title" or "Artist「Title」" in the video title.
   let title = video.title || "Unknown Title";
   if (artist.toLowerCase().includes("vevo") || artist.toLowerCase() === "youtube artist") {
     if (title.includes(" - ")) {
        const parts = title.split(" - ");
        artist = parts[0].trim();
        title = parts[1];
+    } else if (title.includes("「")) {
+       const parts = title.split("「");
+       artist = parts[0].trim() || artist;
+       title = parts[1].replace("」", "").trim();
+    } else if (title.includes("【")) {
+       const parts = title.split("【");
+       artist = parts[0].trim() || artist;
+       title = parts[1].replace("】", "").trim();
     }
   }
 
@@ -427,6 +434,18 @@ async function startServer() {
           v.snippet?.channelTitle ||
           (v as any).author?.name ||
           (v as any).channelTitle || "";
+
+        if (!channel) {
+          const t = v.title || "";
+          if (t.includes(" - ")) {
+            channel = t.split(" - ")[0].trim();
+          } else if (q && t.toLowerCase().includes(q.toLowerCase())) {
+            // Capitalize the matched query for presentation
+            channel = q.charAt(0).toUpperCase() + q.slice(1).toLowerCase();
+          } else if (t.includes("「") || t.includes("【")) {
+            channel = t.split(/[「【]/)[0].trim();
+          }
+        }
 
         // Standardise artist name (remove " - Topic" for the profile display)
         if (channel.toLowerCase().endsWith(" - topic")) {
