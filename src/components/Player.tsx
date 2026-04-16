@@ -15,7 +15,8 @@ export const Player = () => {
     currentTrack, isPlaying, togglePause, volume, setVolume,
     progress, setProgress, duration, setDuration, setIsPlaying,
     isExpanded, setIsExpanded, queue, removeFromQueue, clearQueue,
-    nextTrack, prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat
+    nextTrack, prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat,
+    seekTrigger
   } = usePlayerStore();
 
   const ytPlayerRef = useRef<any>(null);
@@ -166,6 +167,13 @@ export const Player = () => {
     try { if (isMuted) player.mute(); else { player.unMute(); player.setVolume(Math.round(volume * 100)); } }
     catch (_) {}
   }, [volume, isMuted]);
+  
+  // Force Seek to start when seekTrigger changes
+  useEffect(() => {
+    const player = ytPlayerRef.current;
+    if (!player || !isReady || seekTrigger === 0) return;
+    try { player.seekTo(0, true); } catch (_) {}
+  }, [seekTrigger, isReady]);
 
   // ─── Media Session API (Lock screen & OS controls) ─────────────────────────
   useEffect(() => {

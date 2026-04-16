@@ -5,7 +5,7 @@ VibeStream is a premium, high-performance music streaming platform designed for 
 ---
 
 ## 🚀 Live Demo
-- **Frontend**: [https://vibestream-a9c8c.web.app](https://vibestream-a9c8c.web.app)
+- **Frontend**: [https://gen-lang-client-0059135292.web.app](https://gen-lang-client-0059135292.web.app)
 - **Backend API**: [https://vibestream-cjjt.onrender.com](https://vibestream-cjjt.onrender.com)
 
 ---

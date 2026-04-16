@@ -27,6 +27,7 @@ interface PlayerState {
   isExpanded: boolean;
   isShuffle: boolean;
   repeatMode: 'off' | 'all' | 'one';
+  seekTrigger: number; // Increment this to force a seek to start
 
   // Context & Queue
   playbackContext: Track[] | null;
@@ -86,8 +87,20 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 async function apiFetch(url: string, opts?: RequestInit) {
   // If url is relative like "/api/...", prepending API_BASE_URL
+  const { auth } = await import('../lib/firebase');
+  const headers: Record<string, string> = { ...((opts?.headers as any) || {}) };
+  
+  if (auth.currentUser) {
+    const token = await auth.currentUser.getIdToken();
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
-  const r = await fetch(finalUrl, { credentials: 'include', ...opts });
+  const r = await fetch(finalUrl, { 
+    credentials: 'include', 
+    ...opts,
+    headers
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -103,6 +116,7 @@ export const usePlayerStore = create<PlayerState>()(
       isExpanded: false,
       isShuffle: false,
       repeatMode: 'off',
+      seekTrigger: 0,
       playbackContext: null as Track[] | null,
       contextIndex: -1,
       queue: [] as Track[],
@@ -209,14 +223,7 @@ export const usePlayerStore = create<PlayerState>()(
         const { progress, playbackContext, contextIndex, repeatMode } = get();
         // If > 3 seconds, rewind to start
         if (progress > 0.02) { 
-           // Handled externally by resetting progress, but we signal it by re-triggering current track
-           const { currentTrack } = get();
-           if (currentTrack) {
-             set({ progress: 0 });
-             // We can't actually seek from Zustand, the Player.tsx component observes progress.
-             // But actually, clicking Prev in UI restarts the youtube video if we trigger a play state refresh.
-             // Let's just set progress to 0, which works if we bind it carefully, or we can just let Player handle it.
-           }
+           set({ progress: 0, seekTrigger: Date.now() });
            return;
         }
         

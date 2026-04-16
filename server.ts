@@ -388,14 +388,18 @@ async function startServer() {
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
     // When searching for artists, we append "channel" or "topic" to find profiles, not just videos
-    const searchTerm = q ? `${q} music channel` : "top music artists 2024 channel";
+    // Broad search for videos to find the associated channel
+    const searchTerm = q ? `${q} official music` : "popular music artists topic";
     try {
-      console.log(`[Server] Artist search: "${searchTerm}"`);
       const results = await search(searchTerm);
       const seen = new Set<string>();
       const artists: { name: string; thumbnail: string; score: number }[] = [];
 
-      for (const v of results as any[]) {
+      // If specific search, also try a direct search for the query itself
+      const rawResults = q ? await search(q) : [];
+      const combinedResults = [...(rawResults as any[]), ...(results as any[])];
+
+      for (const v of combinedResults) {
         let channel: string =
           v.snippet?.channelTitle ||
           (v as any).author?.name ||
@@ -432,7 +436,7 @@ async function startServer() {
       // Best-matching channels first
       artists.sort((a, b) => b.score - a.score);
 
-      const response = artists.slice(0, 16).map(({ name, thumbnail }) => ({ name: name.trim(), thumbnail }));
+      const response = artists.slice(0, 24).map(({ name, thumbnail }) => ({ name: name.trim(), thumbnail }));
       console.log(`[Server] Artist search returned ${response.length} results`);
       res.json(response);
     } catch (e) {
