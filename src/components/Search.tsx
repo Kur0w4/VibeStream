@@ -173,7 +173,7 @@ export const Search = () => {
                           key={`${track.id}-${index}`}
                           onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
                           className={cn(
-                            'flex items-center gap-3 rounded-2xl overflow-hidden cursor-pointer group transition-all border relative',
+                            'flex items-center gap-3 rounded-2xl cursor-pointer group transition-all border relative',
                             isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
                           )}
                         >
@@ -181,7 +181,7 @@ export const Search = () => {
                             src={track.thumbnail} 
                             loading="lazy" 
                             onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-                            className="w-16 h-16 object-cover shrink-0 opacity-0 transition-opacity duration-500" 
+                            className="w-16 h-16 rounded-l-[15px] object-cover shrink-0 opacity-0 transition-opacity duration-500" 
                             alt="" 
                           />
                           <div className="flex-1 min-w-0 pr-2">
@@ -273,7 +273,7 @@ export const Search = () => {
               {results.slice(0, 48).map((track, index) => (
                 <div 
                   key={`${track.id}-${index}`} 
-                  className="animate-fade-in" 
+                  className={cn("animate-fade-in", activeDropdown === track.id && "z-[60] relative")}
                   style={{ '--delay': `${(index % 12) * 50}ms` } as React.CSSProperties}
                 >
                   <TrackCard 

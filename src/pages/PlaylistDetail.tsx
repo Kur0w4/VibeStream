@@ -263,7 +263,7 @@ export const PlaylistDetail = () => {
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                     title={likedSongs.some(t => t.id === track.id) ? "Unlike" : "Like"}
-                    className="flex justify-end p-1.5 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                    className="flex justify-end p-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all focus:opacity-100"
                   >
                     <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
                   </button>
@@ -272,7 +272,7 @@ export const PlaylistDetail = () => {
                     <button
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                       title="More options"
-                      className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                      className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
@@ -283,7 +283,7 @@ export const PlaylistDetail = () => {
                     <button
                       onClick={(e) => { e.stopPropagation(); removeTrackFromPlaylist(id!, track.videoId); }}
                       title="Remove from playlist"
-                      className="text-text-dim hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                      className="text-text-dim hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

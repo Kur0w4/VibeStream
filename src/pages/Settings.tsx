@@ -106,7 +106,7 @@ export const Settings = () => {
                     <span className="text-lg font-bold text-white truncate">{user.username}</span>
                     <button 
                       onClick={() => setEditingUsername(true)}
-                      className="text-xs font-bold text-accent px-3 py-1.5 bg-accent/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+                      className="text-xs font-bold text-accent px-3 py-1.5 bg-accent/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity whitespace-nowrap"
                     >
                       Edit
                     </button>

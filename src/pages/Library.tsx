@@ -152,7 +152,7 @@ export const Library = () => {
                        <button
                          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                          title={isLiked ? "Unlike" : "Like"}
-                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
+                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-100 md:opacity-0 md:group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
                        >
                          <Heart className={cn('w-4 h-4', isLiked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
                        </button>
@@ -161,7 +161,7 @@ export const Library = () => {
                          <button
                            onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                            title="More options"
-                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                          >
                            <MoreHorizontal className="w-4 h-4" />
                          </button>
