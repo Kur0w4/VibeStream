@@ -269,6 +269,11 @@ async function startServer() {
           const fUid = payload.user_id || payload.sub;
           const email = payload.email || '';
           const name = payload.name || email.split('@')[0] || 'User';
+          
+          // Optimization: If session already exists and matches this user, skip re-saving
+          if (req.session.userId && (req.session.firebaseUid === fUid || req.session.email === email)) {
+            return true;
+          }
 
           let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
           if (!user) {
@@ -281,6 +286,7 @@ async function startServer() {
           req.session.userId = user.id;
           req.session.username = user.username;
           req.session.email = user.email;
+          req.session.firebaseUid = fUid; // Store for optimization check
           req.session.lastAuthError = null;
           await new Promise((resolve) => req.session.save(resolve));
           return true;

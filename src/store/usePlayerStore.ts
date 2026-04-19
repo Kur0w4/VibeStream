@@ -315,14 +315,15 @@ export const usePlayerStore = create<PlayerState>()(
       initAuth: async () => {
         const { auth } = await import('../lib/firebase');
         
-        // Wait for Firebase to finish its initial auth state check
+        // 1. Give Firebase a moment to restore the user session from indexedDB
+        // We use a promise wrapper to handle the one-time detection on boot
         await new Promise<void>((resolve) => {
           const unsubscribe = auth.onAuthStateChanged(async (fUser) => {
-            unsubscribe();
             if (fUser) {
+              unsubscribe(); // Stop listening once we found the user
               try {
                 const token = await fUser.getIdToken();
-                // Send token in body to bypass potential header stripping
+                // Handshake with backend to establish session cookie
                 const user = await apiFetch('/api/auth/token', {
                   method: 'POST',
                   body: JSON.stringify({ token })
@@ -333,11 +334,23 @@ export const usePlayerStore = create<PlayerState>()(
                   await get().syncFromServer();
                 }
               } catch (err) {
-                console.error('[Auth] initAuth failed to identify:', err);
+                console.error('[Auth] initAuth failed to sync with backend:', err);
               }
+              resolve();
+            } else {
+              // If Firebase explicitly says no user after the first check
+              // Note: We might want to wait a few ms because sometimes it emits null then user
+              setTimeout(() => {
+                if (!auth.currentUser) {
+                  unsubscribe();
+                  resolve();
+                }
+              }, 1000);
             }
-            resolve();
           });
+          
+          // Failsafe: Continue anyway after 3 seconds if Firebase is stuck
+          setTimeout(resolve, 3000);
         });
       },
       syncFromServer: async () => {
@@ -468,10 +481,10 @@ export const usePlayerStore = create<PlayerState>()(
         duration: s.duration,
         isShuffle: s.isShuffle,
         repeatMode: s.repeatMode,
-        // Guest data (no account)
-        playlists: s.user ? [] : s.playlists,
-        likedSongs: s.user ? [] : s.likedSongs,
-        followedArtists: s.user ? [] : s.followedArtists,
+        // Persist everything as a local cache for snappiness on reload
+        playlists: s.playlists,
+        likedSongs: s.likedSongs,
+        followedArtists: s.followedArtists,
         listeningHistory: s.listeningHistory,
       }),
     }
