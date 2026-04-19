@@ -68,3 +68,28 @@ export const getYourMix = async (): Promise<Track[]> => {
     return [];
   }
 };
+
+/** Import Playlist from YouTube */
+export const importYoutubePlaylist = async (url: string): Promise<any> => {
+  const { auth } = await import('../lib/firebase');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  
+  if (auth.currentUser) {
+    const token = await auth.currentUser.getIdToken();
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/playlists/import`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: JSON.stringify({ url })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Import failed');
+  }
+
+  return await response.json();
+};

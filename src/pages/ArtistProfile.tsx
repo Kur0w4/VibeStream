@@ -7,6 +7,19 @@ import { TrackDropdown } from '../components/Search';
 import { HeroSkeleton, TrackRowSkeleton } from '../components/Skeletons';
 import { cn } from '../lib/utils';
 
+const ImageWithTransition = ({ src, className, targetOpacity = "opacity-100" }: { src: string, className?: string, targetOpacity?: string }) => {
+  const [loaded, setLoaded] = React.useState(false);
+  return (
+    <img
+      src={src}
+      loading="lazy"
+      onLoad={() => setLoaded(true)}
+      className={cn(className, "transition-opacity duration-700", loaded ? targetOpacity : "opacity-0")}
+      alt=""
+    />
+  );
+};
+
 export const ArtistProfile = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
@@ -79,12 +92,10 @@ export const ArtistProfile = () => {
       <div className="relative h-64 md:h-72 px-4 md:px-10 flex flex-col justify-end overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-bg-main z-10" />
         {thumbnail && (
-          <img 
-            src={thumbnail} 
-            loading="lazy" 
-            onLoad={(e) => (e.currentTarget.style.opacity = '0.2')}
-            className="absolute inset-0 w-full h-full object-cover opacity-0 scale-110 blur-sm transition-opacity duration-1000" 
-            alt="" 
+          <ImageWithTransition 
+            src={thumbnail}
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm z-0"
+            targetOpacity="opacity-20"
           />
         )}
 
@@ -199,16 +210,9 @@ export const ArtistProfile = () => {
                   <div className="flex items-center justify-center">
                     {isActive && isPlaying ? (
                       <div className="flex gap-[2px] items-end h-4">
-                        {[1,2,3].map((i) => (
-                          <div 
-                            key={i} 
-                            className="w-[3px] bg-accent rounded-full animate-bounce" 
-                            style={{ 
-                              '--height': `${8 + i * 4}px`, 
-                              '--delay': `${i * 0.1}s` 
-                            } as React.CSSProperties} 
-                          />
-                        ))}
+                        <div className="w-[3px] h-2 bg-accent rounded-full animate-bounce [animation-delay:0.1s]" />
+                        <div className="w-[3px] h-3 bg-accent rounded-full animate-bounce [animation-delay:0.2s]" />
+                        <div className="w-[3px] h-4 bg-accent rounded-full animate-bounce [animation-delay:0.3s]" />
                       </div>
                     ) : (
                       <>
@@ -221,12 +225,9 @@ export const ArtistProfile = () => {
                   </div>
 
                   <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                    <img 
-                      src={track.thumbnail} 
-                      loading="lazy" 
-                      onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-                      className="w-10 h-10 md:w-11 md:h-11 rounded-xl object-cover shadow-lg shrink-0 opacity-0 transition-opacity duration-500" 
-                      alt="" 
+                    <ImageWithTransition
+                      src={track.thumbnail}
+                      className="w-10 h-10 md:w-11 md:h-11 rounded-xl object-cover shadow-lg shrink-0"
                     />
                     <div className="min-w-0">
                       <p className={cn('text-[13px] md:text-sm font-bold truncate', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Play, X, Zap, Trash2 } from 'lucide-react';
+import { Plus, ListMusic, Play, X, Zap, Trash2, Download, Youtube } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Playlists = () => {
   const navigate = useNavigate();
-  const { playlists, createPlaylist, deletePlaylist } = usePlayerStore();
+  const { playlists, createPlaylist, deletePlaylist, importPlaylist } = usePlayerStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,10 +21,26 @@ export const Playlists = () => {
     setIsModalOpen(false);
   };
 
+  const handleImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importUrl.trim()) return;
+    setIsImporting(true);
+    setImportError('');
+    try {
+      await importPlaylist(importUrl.trim());
+      setImportUrl('');
+      setIsImportModalOpen(false);
+    } catch (err: any) {
+      setImportError(err.message || 'Failed to import. Is the playlist public?');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar relative pb-36">
       <div className="px-4 md:px-10 py-8 md:py-12">
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 md:gap-8 mb-10 md:mb-12">
+        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6 md:gap-8 mb-10 md:mb-12">
           <div className="flex items-center gap-4 md:gap-6">
             <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-purple-500 to-accent rounded-[28px] md:rounded-[32px] flex items-center justify-center shadow-2xl shadow-accent/20 md:rotate-3 shrink-0">
               <ListMusic className="w-10 h-10 md:w-12 md:h-12 text-white" />
@@ -30,12 +50,20 @@ export const Playlists = () => {
               <p className="text-text-dim text-xs md:text-sm mt-1 font-medium italic hidden sm:block">"Your life, your soundtrack."</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 w-full md:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-white text-bg-main font-black text-sm rounded-2xl hover:scale-105 transition-transform shadow-2xl"
-          >
-            <Plus className="w-5 h-5" /> New Playlist
-          </button>
+          <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 bg-white/5 hover:bg-white/10 text-white font-bold text-sm rounded-2xl transition-all border border-white/10"
+            >
+              <Download className="w-5 h-5 text-accent" /> Import from YT
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-6 md:px-8 py-3.5 md:py-4 bg-white text-bg-main font-black text-sm rounded-2xl hover:scale-105 transition-transform shadow-2xl"
+            >
+              <Plus className="w-5 h-5" /> New Playlist
+            </button>
+          </div>
         </header>
 
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
@@ -97,6 +125,7 @@ export const Playlists = () => {
         </div>
       </div>
 
+      {/* Manual Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-bg-sidebar border border-white/10 rounded-[32px] p-8 w-full max-w-md relative shadow-2xl">
@@ -115,6 +144,57 @@ export const Playlists = () => {
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-text-dim hover:text-white hover:bg-white/5 transition-all">Cancel</button>
                 <button type="submit" disabled={!newPlaylistName.trim()} className="px-8 py-3 bg-accent text-black font-black rounded-xl hover:scale-105 transition-transform disabled:opacity-40 disabled:hover:scale-100 shadow-xl shadow-accent/20">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* YouTube Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-bg-sidebar border border-white/10 rounded-[32px] p-8 w-full max-w-md relative shadow-2xl">
+            <button onClick={() => setIsImportModalOpen(false)} title="Close" className="absolute top-6 right-6 p-2 text-text-dim hover:text-white hover:bg-white/10 rounded-full transition-all">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-3 mb-2">
+               <Youtube className="w-8 h-8 text-red-500" />
+               <h2 className="text-2xl font-black text-white">Import from YT</h2>
+            </div>
+            <p className="text-text-dim text-sm mb-6 font-medium">Paste a YouTube Playlist URL to import up to 100 songs.</p>
+            
+            <form onSubmit={handleImport}>
+              <input
+                type="url" value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                placeholder="https://www.youtube.com/playlist?list=..."
+                autoFocus aria-label="YouTube Playlist URL"
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white outline-none focus:border-accent mb-2 transition-colors placeholder:text-text-dim/40"
+              />
+              
+              {importError && (
+                <p className="text-red-400 text-xs font-bold mb-6 mt-1 flex items-center gap-1">
+                   <X className="w-3 h-3" /> {importError}
+                </p>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-text-dim hover:text-white hover:bg-white/5 transition-all">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={!importUrl.trim() || isImporting} 
+                  className={`px-8 py-3 bg-red-600 text-white font-black rounded-xl hover:scale-105 transition-all shadow-xl shadow-red-600/20 flex items-center gap-2 ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isImporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    'Import'
+                  )}
+                </button>
               </div>
             </form>
           </div>

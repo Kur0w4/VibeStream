@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import session from "express-session";
 import cors from "cors";
 import SQLiteStoreFactory from "connect-sqlite3";
+import YouTube from "youtube-sr";
 
 const SQLiteStore = SQLiteStoreFactory(session);
 
@@ -427,6 +428,72 @@ async function startServer() {
       db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.params.id, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
+  });
+
+  app.post("/api/playlists/import", isAuthenticated, async (req: any, res: any) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "Playlist URL required" });
+
+    try {
+      console.log(`[Server] Importing playlist: ${url}`);
+      const playlist = await YouTube.getPlaylist(url, { limit: 100 });
+      if (!playlist) return res.status(404).json({ error: "Playlist not found or is private" });
+
+      const playlistId = Math.random().toString(36).substr(2, 9);
+      const playlistName = playlist.title || "Imported Playlist";
+
+      // Create playlist
+      db.prepare("INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)").run(playlistId, req.session.userId, playlistName);
+
+      // Map and insert tracks
+      type NewTrack = {
+        playlist_id: string;
+        video_id: string;
+        title: string;
+        artist: string;
+        thumbnail: string;
+        duration: string;
+        url: string;
+      };
+
+      const tracks: NewTrack[] = playlist.videos.map(v => {
+        const videoId = v.id;
+        if (!videoId) return null;
+        
+        let artist = v.channel?.name || "YouTube Artist";
+        if (artist.toLowerCase().endsWith(" - topic")) artist = artist.slice(0, -8);
+
+        return {
+          playlist_id: playlistId,
+          video_id: videoId,
+          title: cleanTitle(v.title || "Unknown Title"),
+          artist: artist,
+          thumbnail: v.thumbnail?.url || "",
+          duration: v.durationFormatted || "4:00",
+          url: `https://www.youtube.com/watch?v=${videoId}`
+        };
+      }).filter((t): t is NewTrack => t !== null);
+
+      const insertStmt = db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)");
+      
+      const insertMany = db.transaction((tracksToInsert: NewTrack[]) => {
+        for (const t of tracksToInsert) {
+          insertStmt.run(t.playlist_id, t.video_id, t.title, t.artist, t.thumbnail, t.duration, t.url);
+        }
+      });
+
+      insertMany(tracks);
+
+      res.json({
+        id: playlistId,
+        name: playlistName,
+        tracksCount: tracks.length,
+        tracks: tracks.map(t => ({ id: t.video_id, videoId: t.video_id, title: t.title, artist: t.artist, thumbnail: t.thumbnail, duration: t.duration, url: t.url }))
+      });
+    } catch (error: any) {
+      console.error("[Server] Import Error:", error);
+      res.status(500).json({ error: error.message || "Failed to import playlist" });
+    }
   });
 
   app.delete("/api/playlists/:id/tracks/:videoId", isAuthenticated, (req: any, res: any) => {

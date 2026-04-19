@@ -73,6 +73,7 @@ interface PlayerState {
 
   // Data actions
   createPlaylist: (name: string) => Promise<void>;
+  importPlaylist: (url: string) => Promise<void>;
   deletePlaylist: (id: string) => Promise<void>;
   addTrackToPlaylist: (playlistId: string, track: Track) => Promise<void>;
   removeTrackFromPlaylist: (playlistId: string, videoId: string) => Promise<void>;
@@ -370,6 +371,11 @@ export const usePlayerStore = create<PlayerState>()(
           const pl = { id: Math.random().toString(36).substr(2, 9), name, tracks: [] };
           set({ playlists: [pl, ...playlists] });
         }
+      },
+      importPlaylist: async (url) => {
+        const { importYoutubePlaylist } = await import('../services/api');
+        const newPlaylist = await importYoutubePlaylist(url);
+        set((s) => ({ playlists: [newPlaylist, ...s.playlists] }));
       },
       deletePlaylist: async (id) => {
         const { user } = get();
