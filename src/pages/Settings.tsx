@@ -84,11 +84,15 @@ export const Settings = () => {
                       value={newUsername}
                       onChange={(e) => setNewUsername(e.target.value)}
                       autoFocus
+                      title="Username"
+                      placeholder="Username"
                       className="flex-1 bg-black/40 border border-white/20 rounded-xl py-2 px-4 text-white text-sm outline-none focus:border-accent"
                     />
                     <button 
                       onClick={handleUpdateUsername}
                       disabled={loading || newUsername.length < 3}
+                      title="Save Username"
+                      aria-label="Save Username"
                       className="p-2 bg-accent text-black rounded-xl hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center w-10 h-10"
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-5 h-5" />}
@@ -96,6 +100,8 @@ export const Settings = () => {
                     <button 
                       onClick={() => setEditingUsername(false)}
                       disabled={loading}
+                      title="Cancel"
+                      aria-label="Cancel Editing"
                       className="p-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all flex items-center justify-center w-10 h-10"
                     >
                       <X className="w-5 h-5" />

@@ -274,7 +274,7 @@ export const Search = () => {
                 <div 
                   key={`${track.id}-${index}`} 
                   className={cn("animate-fade-in", activeDropdown === track.id && "z-[60] relative")}
-                  style={{ '--delay': `${(index % 12) * 50}ms` } as React.CSSProperties}
+                  {...({ style: { '--delay': `${(index % 12) * 50}ms` } as React.CSSProperties })}
                 >
                   <TrackCard 
                     track={track} 

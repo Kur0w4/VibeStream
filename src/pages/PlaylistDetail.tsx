@@ -233,10 +233,10 @@ export const PlaylistDetail = () => {
                           <div 
                             key={i} 
                             className="w-[3px] bg-accent rounded-full animate-bounce" 
-                            style={{ 
+                            {...({ style: { 
                               '--height': `${8 + i * 4}px`, 
                               '--delay': `${i * 0.1}s` 
-                            } as React.CSSProperties} 
+                            } as React.CSSProperties })} 
                           />
                         ))}
                       </div>

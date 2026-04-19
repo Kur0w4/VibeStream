@@ -497,7 +497,7 @@ export const Player = () => {
               <div className="w-24 h-1.5 bg-white/5 rounded-full relative overflow-hidden">
                 <div 
                   className="absolute top-0 left-0 h-full bg-text-main rounded-full origin-left transition-transform duration-100" 
-                  style={{ transform: `scaleX(${isMuted ? 0 : volume})` }} 
+                  {...({ style: { transform: `scaleX(${isMuted ? 0 : volume})` } })} 
                 />
                 <input type="range" min={0} max={1} step="any" value={isMuted ? 0 : volume}
                   onChange={(e) => { setVolume(parseFloat(e.target.value)); if (isMuted) setIsMuted(false); }}
@@ -544,7 +544,7 @@ const PlaybackProgress = ({
         <div className="h-1.5 w-full bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
           <div 
             className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10 origin-left" 
-            style={{ transform: `scaleX(${progress || 0})` }} 
+            {...({ style: { transform: `scaleX(${progress || 0})` } })} 
           />
           <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
         </div>
@@ -558,7 +558,7 @@ const PlaybackProgress = ({
       <div className="flex-1 h-1.5 bg-white/5 rounded-full relative group cursor-pointer overflow-hidden border border-white/5">
         <div 
           className="absolute top-0 left-0 h-full bg-gradient-to-r from-accent to-blue-400 rounded-full transition-all duration-150 z-10 origin-left" 
-          style={{ transform: `scaleX(${progress || 0})` }} 
+          {...({ style: { transform: `scaleX(${progress || 0})` } })} 
         />
         <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
       </div>

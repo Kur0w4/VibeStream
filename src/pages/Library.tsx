@@ -133,8 +133,8 @@ export const Library = () => {
                         {isActive && isPlaying ? (
                            <div className="flex gap-[2px] items-end h-3">
                               <div className="w-[2px] h-3 bg-white animate-bounce" />
-                              <div className="w-[2px] h-2 bg-white animate-bounce" style={{ '--delay': '0.1s' } as React.CSSProperties} />
-                              <div className="w-[2px] h-3 bg-white animate-bounce" style={{ '--delay': '0.2s' } as React.CSSProperties} />
+                              <div className="w-[2px] h-2 bg-white animate-bounce" {...({ style: { '--delay': '0.1s' } as React.CSSProperties })} />
+                              <div className="w-[2px] h-3 bg-white animate-bounce" {...({ style: { '--delay': '0.2s' } as React.CSSProperties })} />
                            </div>
                         ) : (
                           <Play className="w-5 h-5 text-white fill-white" />
