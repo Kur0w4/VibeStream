@@ -39,34 +39,34 @@ export const Playlists = () => {
 
   return (
     <div className="flex-1 bg-gradient-to-b from-bg-main to-black overflow-y-auto custom-scrollbar relative pb-36">
-      <div className="px-4 md:px-10 py-8 md:py-12">
-        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6 md:gap-8 mb-10 md:mb-12">
+      <div className="px-4 md:px-8 py-6 md:py-8">
+        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 md:gap-6 mb-8 md:mb-10">
           <div className="flex items-center gap-4 md:gap-6">
-            <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-purple-500 to-accent rounded-[28px] md:rounded-[32px] flex items-center justify-center shadow-2xl shadow-accent/20 md:rotate-3 shrink-0">
-              <ListMusic className="w-10 h-10 md:w-12 md:h-12 text-white" />
+            <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-purple-500 to-accent rounded-[24px] md:rounded-[28px] flex items-center justify-center shadow-2xl shadow-accent/20 md:rotate-3 shrink-0">
+              <ListMusic className="w-8 h-8 md:w-10 md:h-10 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter truncate">Playlists</h1>
-              <p className="text-text-dim text-xs md:text-sm mt-1 font-medium italic hidden sm:block">"Your life, your soundtrack."</p>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tighter truncate">Playlists</h1>
+              <p className="text-text-dim text-xs md:text-sm mt-0.5 font-medium italic hidden sm:block">"Your life, your soundtrack."</p>
             </div>
           </div>
           <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 bg-white/5 hover:bg-white/10 text-white font-bold text-sm rounded-2xl transition-all border border-white/10"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 md:py-3 bg-white/5 hover:bg-white/10 text-white font-bold text-[13px] rounded-xl transition-all border border-white/10"
             >
-              <Download className="w-5 h-5 text-accent" /> Import from YT
+              <Download className="w-4 h-4 text-accent" /> Import from YT
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-6 md:px-8 py-3.5 md:py-4 bg-white text-bg-main font-black text-sm rounded-2xl hover:scale-105 transition-transform shadow-2xl"
+              className="flex items-center justify-center gap-2 px-6 md:px-8 py-2.5 md:py-3 bg-white text-bg-main font-black text-[13px] rounded-xl hover:scale-105 transition-transform shadow-2xl"
             >
-              <Plus className="w-5 h-5" /> New Playlist
+              <Plus className="w-4 h-4" /> New Playlist
             </button>
           </div>
         </header>
 
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
           {/* Your Mix — always first */}
           <div
             onClick={() => navigate('/playlists/mix')}

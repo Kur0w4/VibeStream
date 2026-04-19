@@ -315,8 +315,13 @@ export const usePlayerStore = create<PlayerState>()(
       initAuth: async () => {
         const { auth } = await import('../lib/firebase');
         
-        // 1. Give Firebase a moment to restore the user session from indexedDB
-        // We use a promise wrapper to handle the one-time detection on boot
+        // 1. FAST CACHE: If we already have a user loaded from the local persistent cache, 
+        // silently trigger a sync early so the UI feels instantaneous while Firebase wakes up.
+        if (get().user) {
+          get().syncFromServer().catch((err) => console.error('[Auth] early sync failed', err));
+        }
+
+        // 2. VERIFICATION: Give Firebase a moment to restore the remote session.
         await new Promise<void>((resolve) => {
           const unsubscribe = auth.onAuthStateChanged(async (fUser) => {
             if (fUser) {
@@ -338,18 +343,22 @@ export const usePlayerStore = create<PlayerState>()(
               }
               resolve();
             } else {
-              // If Firebase explicitly says no user after the first check
-              // Note: We might want to wait a few ms because sometimes it emits null then user
+              // If Firebase explicitly says no user, give it a brief moment.
+              // Firebase sometimes emits 'null' immediately before emitting the actual user.
               setTimeout(() => {
                 if (!auth.currentUser) {
                   unsubscribe();
+                  // VERIFIED LOGOUT: If Firebase truly confirms there's no session, wipe the cache locally.
+                  if (get().user) {
+                    set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
+                  }
                   resolve();
                 }
-              }, 1000);
+              }, 1500);
             }
           });
           
-          // Failsafe: Continue anyway after 3 seconds if Firebase is stuck
+          // Failsafe: Don't block the app indefinitely
           setTimeout(resolve, 3000);
         });
       },
@@ -482,6 +491,7 @@ export const usePlayerStore = create<PlayerState>()(
         isShuffle: s.isShuffle,
         repeatMode: s.repeatMode,
         // Persist everything as a local cache for snappiness on reload
+        user: s.user,
         playlists: s.playlists,
         likedSongs: s.likedSongs,
         followedArtists: s.followedArtists,

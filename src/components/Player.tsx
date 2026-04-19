@@ -446,25 +446,25 @@ export const Player = () => {
 
         {/* ══ Footer player bar ══ */}
         <div className={cn(
-          'fixed bottom-0 left-0 right-0 h-[95px] bg-bg-sidebar/95 backdrop-blur-3xl border-t border-glass-border px-8 hidden md:flex items-center justify-between z-50 transition-transform duration-500',
+          'fixed bottom-0 left-0 right-0 h-[76px] bg-bg-sidebar/95 backdrop-blur-3xl border-t border-glass-border px-8 hidden md:flex items-center justify-between z-50 transition-transform duration-500',
           (isExpanded || !currentTrack) ? 'translate-y-full' : 'translate-y-0'
         )}>
           {/* Left: track info */}
-          <div className="flex items-center gap-5 w-[320px]">
-            <div className="w-40 h-[90px] shrink-0" />
+          <div className="flex items-center gap-4 w-[260px]">
+            <div className="w-32 h-[70px] shrink-0" />
             <div className="flex flex-col min-w-0 pr-4">
-              <h3 className="text-text-main font-bold text-sm truncate tracking-tight">{currentTrack?.title}</h3>
+              <h3 className="text-text-main font-bold text-sm truncate tracking-tight leading-tight">{currentTrack?.title}</h3>
               <p className="text-text-dim text-[11px] truncate font-medium mt-0.5">{currentTrack?.artist}</p>
             </div>
           </div>
 
           {/* Center: controls + seek */}
           <div className="flex flex-col items-center gap-2.5 flex-1 max-w-2xl px-4">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-6">
               <button onClick={toggleShuffle} title="Toggle Shuffle" className={cn("transition-all hover:scale-110 active:scale-90", isShuffle ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}><Shuffle className="w-4 h-4" /></button>
               <button onClick={prevTrack} title="Previous Track" className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipBack className="w-5 h-5 fill-current" /></button>
-              <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
-                {isPlaying ? <Pause className="text-bg-main w-6 h-6 fill-current" /> : <Play className="text-bg-main w-6 h-6 fill-current ml-1" />}
+              <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-10 h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
+                {isPlaying ? <Pause className="text-bg-main w-5 h-5 fill-current" /> : <Play className="text-bg-main w-5 h-5 fill-current ml-1" />}
               </button>
               <button onClick={() => nextTrack()} title="Next Track" className="text-text-dim hover:text-text-main transition-all hover:scale-110 active:scale-90"><SkipForward className="w-5 h-5 fill-current" /></button>
               <button onClick={toggleRepeat} title="Toggle Repeat" className={cn("transition-all hover:scale-110 active:scale-90 relative", repeatMode !== 'off' ? "text-accent drop-shadow-[0_0_6px_rgba(0,245,255,0.4)]" : "text-text-dim hover:text-white")}>
@@ -476,7 +476,7 @@ export const Player = () => {
           </div>
 
           {/* Right: volume + queue */}
-          <div className="flex items-center justify-end gap-4 w-[320px]">
+          <div className="flex items-center justify-end gap-4 w-[260px]">
             {/* Queue button */}
             <button
               onClick={() => setShowQueue(!showQueue)}

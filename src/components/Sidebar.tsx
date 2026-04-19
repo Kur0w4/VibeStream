@@ -7,7 +7,7 @@ const SidebarItem = ({ icon: Icon, label, to }: { icon: any; label: string; to: 
     to={to}
     className={({ isActive }: { isActive: boolean }) =>
       cn(
-        'flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 rounded-lg group',
+        'flex items-center gap-3 px-3 py-1.5 cursor-pointer transition-all duration-200 rounded-lg group',
         isActive ? 'bg-glass text-text-main border border-glass-border' : 'text-text-dim hover:text-text-main hover:bg-glass'
       )
     }
@@ -26,12 +26,12 @@ export const Sidebar = ({ className }: { className?: string }) => {
 
   return (
     <>
-      <div className={cn("w-[var(--sidebar-width)] h-full bg-bg-sidebar border-r border-white/5 flex flex-col p-6 hidden md:flex z-20", className)}>
+      <div className={cn("w-[var(--sidebar-width)] h-full bg-bg-sidebar border-r border-white/5 flex flex-col p-4 px-5 hidden md:flex z-20", className)}>
 
         {/* Logo — click goes to Home */}
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-3 mb-10 px-2 group w-full text-left"
+          className="flex items-center gap-3 mb-6 px-1 group w-full text-left"
         >
           <div className="w-10 h-10 bg-gradient-to-tr from-accent to-blue-500 rounded-xl flex items-center justify-center rotate-3 shadow-lg shadow-accent/20 group-hover:scale-105 transition-transform">
             <Music2 className="text-black w-6 h-6 fill-black" />
@@ -43,7 +43,7 @@ export const Sidebar = ({ className }: { className?: string }) => {
         </button>
 
         {/* Nav */}
-        <div className="space-y-8 flex-1 overflow-y-auto custom-scrollbar pr-2">
+        <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
           <div className="flex flex-col gap-2">
             <h2 className="text-[11px] font-bold text-text-dim uppercase tracking-[0.2em] px-3 mb-2">Main Menu</h2>
             <div className="flex flex-col gap-1">

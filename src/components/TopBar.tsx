@@ -21,14 +21,14 @@ export const TopBar = () => {
   };
 
   return (
-    <header className="sticky top-0 z-[100] w-full px-4 md:px-8 py-4 md:py-5 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[70px] md:h-[90px] shrink-0">
+    <header className="sticky top-0 z-[100] w-full px-4 md:px-8 py-2 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[60px] md:h-[64px] shrink-0">
       <div className="flex items-center gap-4">
         {!user ? (
           <Link
             to="/auth"
-            className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-accent to-blue-500 hover:from-accent/90 hover:to-blue-500/90 text-black font-black rounded-2xl transition-all shadow-xl shadow-accent/20 hover:scale-105"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent to-blue-500 hover:from-accent/90 hover:to-blue-500/90 text-black font-black rounded-xl transition-all shadow-xl shadow-accent/20 hover:scale-105 text-sm"
           >
-            <User className="w-5 h-5" />
+            <User className="w-4 h-4" />
             Sign In
           </Link>
         ) : (

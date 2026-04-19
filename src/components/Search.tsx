@@ -20,7 +20,7 @@ export const TrackDropdown = ({
   const liked = likedSongs?.some((t) => t.id === track.id);
 
   return (
-    <div className="absolute right-0 top-10 w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2 z-50" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute right-0 top-10 w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2 z-[100]" onClick={(e) => e.stopPropagation()}>
       <button
         onClick={() => { toggleLike(track); onClose(); }}
         className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm transition-colors flex items-center gap-3"
@@ -194,18 +194,18 @@ export const Search = () => {
                               onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                               title={liked ? "Unlike" : "Like"}
                               aria-label={liked ? "Unlike song" : "Like song"}
-                              className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100', liked ? 'opacity-100' : '')}
+                              className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-100 md:opacity-0 md:group-hover:opacity-100', liked ? 'opacity-100' : '')}
                             >
                               <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
                             </button>
                             
                             <div className="relative" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-                                title="More options"
-                                aria-label="More options"
-                                className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                              >
+                                <button
+                                  onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                                  title="More options"
+                                  aria-label="More options"
+                                  className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                                >
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                               {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
@@ -269,7 +269,7 @@ export const Search = () => {
           ) : results.length === 0 ? (
             <p className="text-text-dim text-center py-16 font-medium">No results found for "{query}"</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
               {results.slice(0, 48).map((track, index) => (
                 <div 
                   key={`${track.id}-${index}`} 
@@ -317,8 +317,9 @@ const TrackCard = memo(({
     <div
       onClick={() => isActive ? togglePause() : playTrack(track, results)}
       className={cn(
-        'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all duration-300 hover:scale-[1.02] z-0 hover:z-10',
-        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
+        'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all duration-300 hover:scale-[1.02]',
+        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10',
+        activeDropdown === track.id ? 'z-[60]' : 'z-0 hover:z-10'
       )}
     >
       {/* Thumbnail */}
@@ -346,7 +347,7 @@ const TrackCard = memo(({
           onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
           title={liked ? "Unlike" : "Like"}
           aria-label={liked ? "Unlike song" : "Like song"}
-          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:scale-110"
         >
           <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-white')} />
         </button>
@@ -363,7 +364,7 @@ const TrackCard = memo(({
             onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
             title="More options"
             aria-label="More options"
-            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all"
+            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>

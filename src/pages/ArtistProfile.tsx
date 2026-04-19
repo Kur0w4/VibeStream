@@ -119,8 +119,8 @@ export const ArtistProfile = () => {
           </div>
           <div className="flex-1 min-w-0">
             <span className="text-[9px] md:text-[10px] font-black text-accent uppercase tracking-[0.3em]">Artist</span>
-            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter mt-1 truncate">{artistName}</h1>
-            <p className="text-text-dim text-xs md:text-sm mt-1">{tracks.length} songs available</p>
+            <h1 className="text-2xl md:text-3xl lg:text-5xl font-black text-white tracking-tighter mt-1 truncate">{artistName}</h1>
+            <p className="text-text-dim text-[10px] md:text-xs mt-1">{tracks.length} songs available</p>
           </div>
         </div>
       </div>
@@ -203,8 +203,9 @@ export const ArtistProfile = () => {
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, displayTracks)}
                   className={cn(
-                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
-                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
+                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-2 rounded-2xl items-center group cursor-pointer transition-all relative',
+                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent',
+                    activeDropdown === track.id ? 'z-50' : 'z-0'
                   )}
                 >
                   <div className="flex items-center justify-center">
@@ -216,7 +217,7 @@ export const ArtistProfile = () => {
                       </div>
                     ) : (
                       <>
-                        <span className={cn('text-xs font-medium text-text-dim group-hover:hidden', isActive && 'hidden')}>{index + 1}</span>
+                        <span className={cn('text-xs font-medium text-text-dim group-hover:hidden md:block', isActive && 'hidden')}>{index + 1}</span>
                         <div className={cn('hidden group-hover:flex', isActive && 'flex')}>
                           {isActive ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
                         </div>
@@ -243,7 +244,7 @@ export const ArtistProfile = () => {
                       title={likedSongs?.some(t => t.id === track.id) ? "Unlike" : "Like"}
                       className={cn(
                         "p-1.5 transition-all focus:opacity-100",
-                        likedSongs?.some(t => t.id === track.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                        likedSongs?.some(t => t.id === track.id) ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
                       )}
                     >
                       <Heart className={cn('w-4 h-4 transition-all hover:scale-110', likedSongs?.some(t => t.id === track.id) ? 'fill-rose-500 text-rose-500 opacity-100' : 'text-text-dim hover:text-white')} />
@@ -253,7 +254,7 @@ export const ArtistProfile = () => {
                       <button
                         onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                         title="More options"
-                        className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                        className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
