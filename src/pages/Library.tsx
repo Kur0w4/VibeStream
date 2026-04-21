@@ -116,10 +116,11 @@ export const Library = () => {
                     key={`${track.id}-${index}`}
                     onClick={() => playTrack(track, listeningHistory)}
                     className={cn(
-                      'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01]',
+                      'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01] relative',
                       isActive
                         ? 'bg-accent/10 border-accent/20'
-                        : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10'
+                        : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10',
+                      activeDropdown === track.id ? 'z-[60]' : 'z-0'
                     )}
                   >
                     <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0 bg-white/5">
@@ -152,7 +153,7 @@ export const Library = () => {
                        <button
                          onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                          title={isLiked ? "Unlike" : "Like"}
-                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-100 md:opacity-0 md:group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
+                         className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-100 lg:opacity-0 lg:group-hover:opacity-100', isLiked ? 'opacity-100' : '')}
                        >
                          <Heart className={cn('w-4 h-4', isLiked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
                        </button>
@@ -161,7 +162,7 @@ export const Library = () => {
                          <button
                            onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                            title="More options"
-                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                           className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all"
                          >
                            <MoreHorizontal className="w-4 h-4" />
                          </button>

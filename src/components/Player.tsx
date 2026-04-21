@@ -377,7 +377,7 @@ export const Player = () => {
                             <p className="text-xs font-bold text-white truncate">{t.title}</p>
                             <p className="text-[10px] text-text-dim truncate">{t.artist}</p>
                           </div>
-                          <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 text-text-dim hover:text-red-400 transition-all">
+                          <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-text-dim hover:text-red-400 transition-all">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -432,7 +432,7 @@ export const Player = () => {
                           <p className="text-sm font-bold text-white truncate">{t.title}</p>
                           <p className="text-xs text-text-dim truncate">{t.artist}</p>
                         </div>
-                        <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+                        <button onClick={() => removeFromQueue(i)} title="Remove from queue" className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
