@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { searchTracks, getYourMix } from '../services/api';
 import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon, Heart } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
-import { TrackDropdown } from '../components/Search';
+import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const PlaylistDetail = () => {
@@ -12,7 +12,7 @@ export const PlaylistDetail = () => {
   const { user, playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist, addTrackToPlaylist, likedSongs, toggleLike } = usePlayerStore();
   const [mixTracks, setMixTracks] = useState<Track[]>([]);
   const [mixLoading, setMixLoading] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Track[]>([]);
@@ -27,12 +27,6 @@ export const PlaylistDetail = () => {
     }, 600);
     return () => clearTimeout(t);
   }, [searchQuery]);
-
-  React.useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
 
   const isMix = id === 'mix';
 
@@ -215,16 +209,15 @@ export const PlaylistDetail = () => {
             {tracks.map((track, index) => {
               const isActive = currentTrack?.id === track.id;
               return (
-                <div
+                <article
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, tracks)}
                   className={cn(
                     'grid gap-2 md:gap-4 px-3 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all',
                     isMix
-                      ? 'grid-cols-[40px_1fr_40px_40px] md:grid-cols-[40px_1fr_80px_40px_40px]' // Hidden duration on mobile
+                      ? 'grid-cols-[40px_1fr_40px_40px] md:grid-cols-[40px_1fr_80px_40px_40px]'
                       : 'grid-cols-[40px_1fr_40px_40px] md:grid-cols-[40px_1fr_80px_40px_40px_40px]', 
-                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent',
-                    'relative', activeDropdown === track.id ? 'z-50' : ''
+                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
                   <div className="flex items-center justify-center">
@@ -271,13 +264,14 @@ export const PlaylistDetail = () => {
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
+                      ref={getTriggerRef(track.id)}
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                       title="More options"
                       className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-100 transition-all"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
-                    {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                    {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
                   </div>
 
                   {!isMix && (
@@ -289,7 +283,7 @@ export const PlaylistDetail = () => {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
-                </div>
+                </article>
               );
             })}
           </div>

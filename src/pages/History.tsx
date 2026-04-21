@@ -1,20 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Clock, Play, Pause, MoreHorizontal, Search as SearchIcon, Shuffle, Trash2 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { TrackDropdown } from '../components/Search';
+import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const History = () => {
   const { playTrack, currentTrack, isPlaying, togglePause, listeningHistory, user } = usePlayerStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-
-  // Close dropdown on outside click
-  React.useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
 
   const filtered = listeningHistory.filter((t) =>
     !searchQuery.trim() ||
@@ -158,6 +151,7 @@ export const History = () => {
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
+                      ref={getTriggerRef(track.id)}
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                       title="More options"
                       className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-text-dim hover:text-white"
@@ -165,7 +159,7 @@ export const History = () => {
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
                     {activeDropdown === track.id && (
-                      <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />
+                      <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />
                     )}
                   </div>
                 </div>

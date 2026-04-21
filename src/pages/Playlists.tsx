@@ -106,7 +106,7 @@ export const Playlists = () => {
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); deletePlaylist(pl.id); }}
-                  className="p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shrink-0 ml-2"
+                  className="p-1.5 text-text-dim hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 ml-2"
                   title="Delete playlist"
                 >
                   <Trash2 className="w-4 h-4" />

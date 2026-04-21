@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Library as LibraryIcon, ListMusic, Mic2, Disc, Play, Plus, Clock, X, ArrowRight, Heart, MoreHorizontal } from 'lucide-react';
-import { TrackDropdown } from '../components/Search';
+import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 
@@ -12,13 +12,8 @@ export const Library = () => {
     playTrack, currentTrack, isPlaying, createPlaylist, toggleLike
   } = usePlayerStore();
 
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
 
-  React.useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -112,15 +107,14 @@ export const Library = () => {
                 const isActive = currentTrack?.id === track.id;
                 const isLiked = likedSongs?.some(t => t.id === track.id);
                 return (
-                  <div
+                  <article
                     key={`${track.id}-${index}`}
                     onClick={() => playTrack(track, listeningHistory)}
                     className={cn(
-                      'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-all group hover:scale-[1.01] relative',
+                      'flex items-center gap-3 border p-3 rounded-2xl cursor-pointer transition-colors group',
                       isActive
                         ? 'bg-accent/10 border-accent/20'
-                        : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10',
-                      activeDropdown === track.id ? 'z-50' : ''
+                        : 'bg-white/4 hover:bg-white/8 border-white/5 hover:border-white/10'
                     )}
                   >
                     <div className="w-14 h-14 rounded-xl overflow-hidden relative shadow-md shrink-0 bg-white/5">
@@ -160,16 +154,17 @@ export const Library = () => {
 
                        <div className="relative" onClick={(e) => e.stopPropagation()}>
                          <button
+                           ref={getTriggerRef(track.id)}
                            onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                            title="More options"
                            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 transition-all"
                          >
                            <MoreHorizontal className="w-4 h-4" />
                          </button>
-                         {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                         {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
                        </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>

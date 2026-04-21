@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Mic2, Play, Pause, UserPlus, UserCheck, Loader2, Heart, MoreHorizontal, Search as SearchIcon } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { searchTracks, getArtistTracks } from '../services/api';
-import { TrackDropdown } from '../components/Search';
+import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { HeroSkeleton, TrackRowSkeleton } from '../components/Skeletons';
 import { cn } from '../lib/utils';
 
@@ -29,18 +29,12 @@ export const ArtistProfile = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [thumbnail, setThumbnail] = useState('');
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
   const [isFollowing, setIsFollowing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-
-  React.useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
 
   const isFollowed = followedArtists.some((a) => a.name === artistName);
 
@@ -199,13 +193,12 @@ export const ArtistProfile = () => {
             {displayTracks.map((track, index) => {
               const isActive = currentTrack?.id === track.id;
               return (
-                <div
+                <article
                   key={`${track.id}-${index}`}
                   onClick={() => isActive ? togglePause() : playTrack(track, displayTracks)}
                   className={cn(
-                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-2 rounded-2xl items-center group cursor-pointer transition-all relative',
-                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent',
-                    activeDropdown === track.id ? 'z-50' : ''
+                    'grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-2 rounded-2xl items-center group cursor-pointer transition-all',
+                    isActive ? 'bg-accent/10 border border-accent/20' : 'hover:bg-white/5 border border-transparent'
                   )}
                 >
                   <div className="flex items-center justify-center">
@@ -251,16 +244,17 @@ export const ArtistProfile = () => {
 
                     <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                       <button
+                        ref={getTriggerRef(track.id)}
                         onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                         title="More options"
                         className="text-text-dim hover:text-white p-1.5 hover:bg-white/10 rounded-lg opacity-100 transition-all"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
-                      {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                      {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
                     </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>

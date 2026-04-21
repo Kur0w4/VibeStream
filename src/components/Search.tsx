@@ -1,4 +1,5 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap } from 'lucide-react';
 import { searchTracks, getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
@@ -12,15 +13,62 @@ function getGreeting() {
   return 'Good evening';
 }
 
-/** Shared track card dropdown — like, add to playlist, add to queue */
+
+/** 
+ * Portal-based Dropdown — renders directly into document.body so it is NEVER
+ * clipped by ancestor `position:relative`, `transform`, `overflow:hidden`, or
+ * `z-index` stacking contexts. This is the definitive fix for dropdowns being
+ * hidden behind sibling cards on mobile and desktop.
+ */
 export const TrackDropdown = ({
-  track, onClose,
-}: { track: Track; onClose: () => void }) => {
+  track, onClose, triggerRef,
+}: { 
+  track: Track; 
+  onClose: () => void; 
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
+}) => {
   const { playlists, addTrackToPlaylist, toggleLike, likedSongs, addToQueue } = usePlayerStore();
   const liked = likedSongs?.some((t) => t.id === track.id);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
 
-  return (
-    <div className="absolute right-0 top-10 w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2 z-[100]" onClick={(e) => e.stopPropagation()}>
+  // Calculate position from the trigger button's bounding rect.
+  // position:fixed is relative to the VIEWPORT so we do NOT add scrollY.
+  useEffect(() => {
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 6,
+        right: Math.max(4, window.innerWidth - rect.right),
+      });
+    } else {
+      // Fallback: show near bottom-right if no ref provided
+      setPos({ top: window.innerHeight - 280, right: 16 });
+    }
+  }, [triggerRef]);
+
+  // Close on outside click / scroll
+  useEffect(() => {
+    const close = () => onClose();
+    // Small delay so the opening click does not immediately close the menu
+    const t = setTimeout(() => {
+      document.addEventListener('click', close);
+      window.addEventListener('scroll', close, true);
+    }, 10);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [onClose]);
+
+  const menu = (
+    <div
+      ref={menuRef}
+      onClick={(e) => e.stopPropagation()}
+      style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
+      className="w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2"
+    >
       <button
         onClick={() => { toggleLike(track); onClose(); }}
         className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm transition-colors flex items-center gap-3"
@@ -55,13 +103,39 @@ export const TrackDropdown = ({
       )}
     </div>
   );
+
+  return createPortal(menu, document.body);
 };
+
+/**
+ * Hook to manage a dropdown trigger button ref + state together.
+ * Use this in any component that renders TrackDropdown.
+ */
+export function useTrackDropdown() {
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const triggerRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  const getTriggerRef = useCallback((id: string) => {
+    return (el: HTMLButtonElement | null) => {
+      if (el) triggerRefs.current.set(id, el);
+      else triggerRefs.current.delete(id);
+    };
+  }, []);
+
+  const getRefForId = useCallback((id: string): React.RefObject<HTMLButtonElement | null> => {
+    return { current: triggerRefs.current.get(id) ?? null };
+  }, []);
+
+  return { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId };
+}
+
+
 
 export const Search = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
 
   const {
     playTrack, currentTrack, isPlaying, togglePause,
@@ -108,11 +182,7 @@ export const Search = () => {
     return () => clearTimeout(id);
   }, [query]);
 
-  useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
+  // No manual window listener needed — TrackDropdown portal handles its own close
 
   const quickPicks = listeningHistory.slice(0, 6);
 
@@ -173,9 +243,8 @@ export const Search = () => {
                           key={`${track.id}-${index}`}
                           onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
                           className={cn(
-                            'flex gap-3 rounded-2xl cursor-pointer group transition-all border relative',
-                            isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5',
-                            activeDropdown === track.id ? 'z-50' : ''
+                            'flex gap-3 rounded-2xl cursor-pointer group transition-colors border',
+                            isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
                           )}
                         >
                           <img 
@@ -185,36 +254,37 @@ export const Search = () => {
                             className="w-16 h-16 rounded-l-[15px] object-cover shrink-0 opacity-0 transition-opacity duration-500" 
                             alt="" 
                           />
-                          <div className="flex-1 min-w-0 pr-2">
+                          <div className="flex-1 min-w-0 py-2">
                              <p className="font-bold text-sm text-white truncate leading-none">{track.title}</p>
                              <p className="text-[10px] text-text-dim mt-1 truncate font-medium">{track.artist}</p>
                           </div>
                           
-                          <div className="flex items-center gap-1.5 mr-3">
+                          <div className="flex items-center gap-1 mr-2" onClick={(e) => e.stopPropagation()}>
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                               title={liked ? "Unlike" : "Like"}
                               aria-label={liked ? "Unlike song" : "Like song"}
-                              className={cn('p-1.5 rounded-full transition-all hover:scale-110 opacity-100', liked ? '' : '')}
+                              className="p-1.5 rounded-full transition-colors"
                             >
                               <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim hover:text-white')} />
                             </button>
                             
-                            <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-                                  title="More options"
-                                  aria-label="More options"
-                                  className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 transition-all"
-                                >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </button>
-                              {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
-                            </div>
+                            <button
+                              ref={getTriggerRef(track.id)}
+                              onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+                              title="More options"
+                              aria-label="More options"
+                              className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                            {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
 
-                            <div className={cn('opacity-0 group-hover:opacity-0 transition-opacity', isActive && 'opacity-100')}>
-                              {isActive && isPlaying ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
-                            </div>
+                            {isActive && (
+                              <div className="pl-1">
+                                {isPlaying ? <Pause className="w-4 h-4 text-accent fill-current" /> : <Play className="w-4 h-4 text-accent fill-current" />}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -274,7 +344,7 @@ export const Search = () => {
               {results.slice(0, 48).map((track, index) => (
                 <div 
                   key={`${track.id}-${index}`} 
-                  className={cn("animate-fade-in group relative", activeDropdown === track.id ? "z-50" : "z-0")}
+                  className="animate-fade-in"
                   {...({ style: { '--delay': `${(index % 12) * 50}ms` } as React.CSSProperties })}
                 >
                   <TrackCard 
@@ -282,6 +352,8 @@ export const Search = () => {
                     results={results}
                     activeDropdown={activeDropdown}
                     setActiveDropdown={setActiveDropdown}
+                    getTriggerRef={getTriggerRef}
+                    getRefForId={getRefForId}
                   />
                 </div>
               ))}
@@ -297,18 +369,21 @@ export const Search = () => {
 
 /** 
  * Memoized Track Card to prevent re-renders when other items or query change.
- * Extracted from main component to follow performance best practices.
  */
 const TrackCard = memo(({ 
   track, 
   results,
   activeDropdown,
-  setActiveDropdown
+  setActiveDropdown,
+  getTriggerRef,
+  getRefForId,
 }: { 
   track: Track; 
   results: Track[];
   activeDropdown: string | null;
   setActiveDropdown: (id: string | null) => void;
+  getTriggerRef: (id: string) => (el: HTMLButtonElement | null) => void;
+  getRefForId: (id: string) => React.RefObject<HTMLButtonElement | null>;
 }) => {
   const { playTrack, currentTrack, isPlaying, togglePause, likedSongs, toggleLike } = usePlayerStore();
   const isActive = currentTrack?.id === track.id;
@@ -318,9 +393,8 @@ const TrackCard = memo(({
     <div
       onClick={() => isActive ? togglePause() : playTrack(track, results)}
       className={cn(
-        'group relative flex flex-col rounded-[24px] border cursor-pointer transition-all items-start duration-300 hover:scale-[1.02]',
-        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10',
-        activeDropdown === track.id ? 'z-50' : ''
+        'flex flex-col rounded-[24px] border cursor-pointer transition-colors',
+        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
       )}
     >
       {/* Thumbnail */}
@@ -330,25 +404,22 @@ const TrackCard = memo(({
           alt={track.title} 
           loading="lazy"
           onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700 opacity-0" 
+          className="w-full h-full object-cover transition-all duration-700 opacity-0" 
         />
-        <div className={cn(
-          'absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200',
-          isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        )}>
-          <div className={cn(
-            'w-12 h-12 bg-accent text-black rounded-full flex items-center justify-center shadow-xl transition-transform duration-300',
-            isActive ? 'scale-100' : 'scale-75 group-hover:scale-100'
-          )}>
-            {isActive && isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+        {/* Play/Pause overlay — always visible while active, hidden otherwise */}
+        {isActive && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <div className="w-12 h-12 bg-accent text-black rounded-full flex items-center justify-center shadow-xl">
+              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+            </div>
           </div>
-        </div>
-        {/* Like badge */}
+        )}
+        {/* Like badge — always visible */}
         <button
           onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
           title={liked ? "Unlike" : "Like"}
           aria-label={liked ? "Unlike song" : "Like song"}
-          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-100 transition-opacity hover:scale-110"
+          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-colors"
         >
           <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-rose-500 text-rose-500' : 'text-white')} />
         </button>
@@ -360,16 +431,17 @@ const TrackCard = memo(({
           <p className={cn('text-sm font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
           <p className="text-xs text-text-dim truncate mt-0.5 font-medium">{track.artist}</p>
         </div>
-        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
+            ref={getTriggerRef(track.id)}
             onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
             title="More options"
             aria-label="More options"
-            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-100"
+            className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
-          {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+          {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
         </div>
       </div>
     </div>

@@ -1,21 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search as SearchIcon, Play, TrendingUp, MoreHorizontal, Clock, Heart } from 'lucide-react';
 import { getTrendingTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
-import { TrackDropdown } from '../components/Search';
+import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
 
 export const Trends = () => {
-  const [results, setResults] = useState<Track[]>([]);
+  const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
   const { playTrack, currentTrack, isPlaying, likedSongs, toggleLike, togglePause } = usePlayerStore();
-
-  React.useEffect(() => {
-    const h = () => setActiveDropdown(null);
-    window.addEventListener('click', h);
-    return () => window.removeEventListener('click', h);
-  }, []);
 
   useEffect(() => {
     const fetchTrends = async () => {
@@ -73,16 +67,15 @@ export const Trends = () => {
              </div>
           ) : (
             results.map((track, index) => (
-              <div 
+              <article 
                 key={`${track.id}-${index}`}
                 onClick={() => {
                   const isActive = currentTrack?.id === track.id;
                   isActive ? togglePause() : playTrack(track, results);
                 }}
                 className={cn(
-                  "grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all duration-300 relative",
-                  currentTrack?.id === track.id ? "bg-accent/10 border border-accent/20 shadow-lg shadow-accent/5" : "hover:bg-white/5 border border-transparent",
-                  activeDropdown === track.id ? 'z-50' : ''
+                  "grid grid-cols-[40px_1fr_40px] md:grid-cols-[40px_1fr_1fr_80px_40px_40px] gap-2 md:gap-4 px-2 md:px-4 py-3 rounded-2xl items-center group cursor-pointer transition-all duration-300",
+                  currentTrack?.id === track.id ? "bg-accent/10 border border-accent/20 shadow-lg shadow-accent/5" : "hover:bg-white/5 border border-transparent"
                 )}
               >
                 <div className="flex items-center justify-center">
@@ -127,16 +120,17 @@ export const Trends = () => {
 
                   <div className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
+                      ref={getTriggerRef(track.id)}
                       onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
                       title="More options"
                       className="p-1.5 text-text-dim hover:text-white hover:bg-white/10 rounded-lg opacity-100 transition-all"
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
-                    {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} />}
+                    {activeDropdown === track.id && <TrackDropdown track={track} onClose={() => setActiveDropdown(null)} triggerRef={getRefForId(track.id)} />}
                   </div>
                 </div>
-              </div>
+              </article>
             ))
           )}
         </div>
