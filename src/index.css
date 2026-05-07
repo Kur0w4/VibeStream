@@ -78,5 +78,7 @@
   /* Universal variable utilities to avoid inline style warnings */
   [style*="--width"] { width: var(--width); }
   [style*="--height"] { height: var(--height); }
-}
 
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}

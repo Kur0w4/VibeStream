@@ -482,15 +482,17 @@ export const Player = () => {
               <button onClick={() => setIsMuted(!isMuted)} className="text-text-dim hover:text-white transition-colors">
                 {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
-              <div className="w-20 h-1 bg-white/10 rounded-full relative overflow-hidden group-hover/vol:bg-white/20 transition-colors">
-                <div 
-                  className="absolute top-0 left-0 h-full bg-white rounded-full origin-left transition-transform duration-100" 
-                  {...({ style: { transform: `scaleX(${isMuted ? 0 : volume})` } })} 
-                />
+              <div className="w-20 py-3 -my-3 relative group-hover/vol:opacity-100 cursor-pointer flex items-center">
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden group-hover/vol:bg-white/20 transition-colors relative">
+                  <div 
+                    className="absolute top-0 left-0 h-full w-full bg-white rounded-full origin-left transition-transform duration-100" 
+                    {...({ style: { transform: `scaleX(${isMuted ? 0 : volume})` } })} 
+                  />
+                </div>
                 <input type="range" min={0} max={1} step="any" value={isMuted ? 0 : volume}
                   onChange={(e) => { setVolume(parseFloat(e.target.value)); if (isMuted) setIsMuted(false); }}
                   aria-label="Volume" title="Adjust volume"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
               </div>
             </div>
           </div>
@@ -524,15 +526,15 @@ const TimeDisplay = ({ formatTime }: { formatTime: (s: number) => string }) => {
 const PlaybackProgressEdge = ({ onSeek }: { onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void }) => {
   const progress = usePlayerStore(s => s.progress);
   return (
-    <div className="w-full h-full bg-transparent group-hover:bg-white/10 relative transition-colors">
-      {/* Progress track invisible except on hover to show full width */}
+    <div className="w-full h-1 bg-transparent hover:bg-white/10 relative transition-colors group/edge">
+      {/* Progress track */}
       <div 
-        className="absolute top-0 left-0 h-full bg-accent transition-all duration-150 z-10 origin-left" 
+        className="absolute top-0 left-0 h-full w-full bg-accent transition-all duration-150 z-10 origin-left" 
         {...({ style: { transform: `scaleX(${progress || 0})` } })} 
       />
       {/* Hitbox expanded for easier clicking */}
-      <div className="absolute -top-2 -bottom-2 left-0 right-0 z-20">
-         <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+      <div className="absolute -top-3 -bottom-3 left-0 right-0 z-20 flex items-center">
+         <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="w-full h-full opacity-0 cursor-pointer" />
       </div>
     </div>
   );
@@ -559,11 +561,13 @@ const PlaybackProgress = ({
         <span>{formatTime((progress || 0) * duration)}</span>
         <span>{formatTime(duration)}</span>
       </div>
-      <div className="h-1.5 w-full bg-white/10 rounded-full relative group cursor-pointer overflow-hidden">
-        <div 
-          className="absolute top-0 left-0 h-full bg-white rounded-full transition-all duration-150 z-10 origin-left" 
-          {...({ style: { transform: `scaleX(${progress || 0})` } })} 
-        />
+      <div className="py-4 -my-4 w-full relative cursor-pointer flex items-center group/prog">
+        <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden relative">
+          <div 
+            className="absolute top-0 left-0 h-full w-full bg-white rounded-full transition-all duration-150 z-10 origin-left group-hover/prog:bg-accent" 
+            {...({ style: { transform: `scaleX(${progress || 0})` } })} 
+          />
+        </div>
         <input type="range" min={0} max={1} step="any" value={progress || 0} onChange={onSeek} aria-label="Seek track" title="Seek" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
       </div>
     </>
