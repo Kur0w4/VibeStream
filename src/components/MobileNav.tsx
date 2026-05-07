@@ -13,7 +13,7 @@ export const MobileNav = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[100] bg-bg-sidebar/95 backdrop-blur-3xl border-t border-white/5 px-4 pb-safe pt-2 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-[100] bg-bg-sidebar/95 backdrop-blur-3xl px-2 pb-safe pt-2 md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
       <div className="flex items-center justify-around max-w-lg mx-auto h-[70px]">
         {navItems.map(({ icon: Icon, label, to }) => (
           <NavLink

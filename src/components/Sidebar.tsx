@@ -7,15 +7,15 @@ const SidebarItem = ({ icon: Icon, label, to }: { icon: any; label: string; to: 
     to={to}
     className={({ isActive }: { isActive: boolean }) =>
       cn(
-        'flex items-center gap-3 px-3 py-1.5 cursor-pointer transition-all duration-200 rounded-lg group',
-        isActive ? 'bg-glass text-text-main border border-glass-border' : 'text-text-dim hover:text-text-main hover:bg-glass'
+        'flex items-center gap-4 px-4 py-3 cursor-pointer transition-all duration-200 rounded-xl group',
+        isActive ? 'bg-white/10 text-white shadow-sm' : 'text-text-dim hover:text-white hover:bg-white/5'
       )
     }
   >
     {({ isActive }: { isActive: boolean }) => (
       <>
-        <Icon className={cn('w-4 h-4', isActive ? 'text-accent' : 'group-hover:text-accent')} />
-        <span className="font-medium text-sm">{label}</span>
+        <Icon className={cn('w-5 h-5', isActive ? 'text-accent' : 'group-hover:text-accent transition-colors')} />
+        <span className={cn('text-sm', isActive ? 'font-bold' : 'font-medium')}>{label}</span>
       </>
     )}
   </NavLink>
@@ -26,7 +26,7 @@ export const Sidebar = ({ className }: { className?: string }) => {
 
   return (
     <>
-      <div className={cn("w-[var(--sidebar-width)] h-full bg-bg-sidebar border-r border-white/5 flex flex-col p-4 px-5 hidden md:flex z-20", className)}>
+      <div className={cn("w-[var(--sidebar-width)] h-full bg-bg-sidebar flex flex-col p-4 px-5 hidden md:flex z-20", className)}>
 
         {/* Logo — click goes to Home */}
         <button

@@ -21,7 +21,7 @@ export const TopBar = () => {
   };
 
   return (
-    <header className="sticky top-0 z-[100] w-full px-4 md:px-8 py-2 bg-bg-main/80 backdrop-blur-xl border-b border-white/5 flex items-center justify-end h-[60px] md:h-[64px] shrink-0">
+    <header className="sticky top-0 z-[100] w-full px-4 md:px-8 py-2 bg-bg-main/95 backdrop-blur-2xl flex items-center justify-end h-[64px] md:h-[72px] shrink-0">
       <div className="flex items-center gap-4">
         {!user ? (
           <Link

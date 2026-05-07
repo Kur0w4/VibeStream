@@ -243,15 +243,15 @@ export const Search = () => {
                           key={`${track.id}-${index}`}
                           onClick={() => isActive ? togglePause() : playTrack(track, quickPicks)}
                           className={cn(
-                            'flex gap-3 rounded-2xl cursor-pointer group transition-colors border',
-                            isActive ? 'bg-accent/15 border-accent/30' : 'bg-white/5 hover:bg-white/10 border-white/5'
+                            'flex gap-3 rounded-xl cursor-pointer group transition-all items-center p-2',
+                            isActive ? 'bg-white/10' : 'hover:bg-white/5'
                           )}
                         >
                           <img 
                             src={track.thumbnail} 
                             loading="lazy" 
                             onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-                            className="w-16 h-16 rounded-l-[15px] object-cover shrink-0 opacity-0 transition-opacity duration-500" 
+                            className="w-14 h-14 rounded-lg object-cover shrink-0 opacity-0 transition-opacity duration-500 shadow-md" 
                             alt="" 
                           />
                           <div className="flex-1 min-w-0 py-2">
@@ -393,12 +393,12 @@ const TrackCard = memo(({
     <div
       onClick={() => isActive ? togglePause() : playTrack(track, results)}
       className={cn(
-        'flex flex-col rounded-[24px] border cursor-pointer transition-colors',
-        isActive ? 'border-accent/30 bg-accent/5' : 'border-white/5 bg-white/3 hover:bg-white/8 hover:border-white/10'
+        'flex flex-col group cursor-pointer transition-all hover:scale-[1.02]',
+        isActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
       )}
     >
       {/* Thumbnail */}
-      <div className="relative aspect-square overflow-hidden rounded-t-[23px]">
+      <div className="relative aspect-square overflow-hidden rounded-xl shadow-lg">
         <img 
           src={track.thumbnail} 
           alt={track.title} 
@@ -426,10 +426,10 @@ const TrackCard = memo(({
       </div>
 
       {/* Info */}
-      <div className="p-3 flex items-start justify-between gap-2">
+      <div className="pt-3 pb-1 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn('text-sm font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
-          <p className="text-xs text-text-dim truncate mt-0.5 font-medium">{track.artist}</p>
+          <p className={cn('text-[15px] font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
+          <p className="text-[13px] text-text-dim truncate mt-0.5 font-medium hover:text-white transition-colors">{track.artist}</p>
         </div>
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
