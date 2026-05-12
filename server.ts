@@ -128,18 +128,19 @@ function cleanTitle(title: string) {
 }
 
 function mapVideo(video: any) {
-  const videoId = video.id?.videoId;
+  const videoId = typeof video.id === 'string' ? video.id : video.id?.videoId;
   if (!videoId || videoId === "undefined") return null;
 
-  let artist: string = video.snippet?.channelTitle || video.author?.name || "YouTube Artist";
+  let artist: string = video.channel?.name || video.snippet?.channelTitle || video.author?.name || "YouTube Artist";
   
   // Topic channels are the gold standard for music search
   if (artist.toLowerCase().endsWith(" - topic")) {
     artist = artist.slice(0, -8);
   }
 
-  // Sometimes artists put "Artist - Title" or "Artist「Title」" in the video title.
   let title = video.title || "Unknown Title";
+  
+  // If artist is still "YouTube Artist" or "Vevo", try to parse from title
   if (artist.toLowerCase().includes("vevo") || artist.toLowerCase() === "youtube artist") {
     if (title.includes(" - ")) {
        const parts = title.split(" - ");
@@ -162,21 +163,22 @@ function mapVideo(video: any) {
     title: cleanTitle(title),
     artist: artist,
     thumbnail:
+      video.thumbnail?.url ||
       video.snippet?.thumbnails?.high?.url ||
       video.snippet?.thumbnails?.default?.url ||
       "",
-    duration: video.duration_raw || video.snippet?.duration || "4:00",
+    duration: video.duration_formatted || video.duration_raw || video.snippet?.duration || "4:00",
     url: `https://www.youtube.com/watch?v=${videoId}`,
   };
 }
 
 function filterDuration(video: any) {
-  const duration = video.duration_raw || video.snippet?.duration || "";
+  const duration = video.duration_formatted || video.duration_raw || video.snippet?.duration || "";
   if (!duration || duration.toLowerCase() === "live") return true;
   const parts = duration.split(":");
-  // Skip extremely long videos (mixes) if we want direct songs (e.g., > 12 mins)
+  // Skip extremely long videos (mixes) if we want direct songs (e.g., > 15 mins)
   if (parts.length > 2) return false;
-  if (parts.length === 2 && parseInt(parts[0], 10) > 12) return false;
+  if (parts.length === 2 && parseInt(parts[0], 10) > 15) return false;
   return true;
 }
 
@@ -201,33 +203,73 @@ function setServerCache(key: string, data: any[]): void {
   serverSearchCache.set(key, { data, expiresAt: Date.now() + SERVER_CACHE_TTL });
 }
 
-async function youtubeSearch(query: string, limit = 50) {
-  // Advanced Query Engineering:
-  // We prioritize "Topic" channels and "Official" content by appending specific markers.
-  // We also try to avoid fan-made covers unless explicitly searched.
-  const isSpecificSearch = query.length > 15;
-  const refinedQuery = isSpecificSearch 
-    ? `${query} official`
-    : `${query} topic music`;
+// Mood → genre seed mapping for personalized mood search
+const MOOD_SEEDS: Record<string, string[]> = {
+  relax:    ['lofi chill beats', 'acoustic relaxing songs', 'ambient peaceful music', 'chill coffee shop jazz'],
+  workout:  ['gym hype hip hop', 'high energy phonk', 'hardstyle workout', 'rock gym motivation'],
+  energize: ['uptempo pop hits', 'dance floor anthems', 'happy indie pop', 'summer vibes house'],
+  commute:  ['easy listening indie', 'alternative road trip', 'pop radio hits', 'nostalgic soft rock'],
+  focus:    ['deep focus techno', 'instrumental study beats', 'classical concentration', 'minimalist ambient'],
+  party:    ['club bangers 2024', 'latin party hits', 'electronic dance music', 'pop party mix'],
+  sad:      ['sad boy hours', 'emotional piano ballads', 'indie folk sadness', 'heartbreak songs'],
+  romance:  ['romantic soul rnb', 'love song ballads', 'acoustic wedding songs', 'sensual jazz'],
+};
 
+async function youtubeSearch(query: string, limit = 50) {
+  const refinedQuery = query.toLowerCase().includes('official') ? query : `${query} official audio`;
+  
   const cached = getServerCache(refinedQuery);
   if (cached) return cached;
 
-  const results = await search(refinedQuery);
-  const mapped = results
-    .filter((v: any) => {
-      const vid = v.id?.videoId;
-      const title = (v.title || "").toLowerCase();
-      // Heuristic: filter out 1-hour loops or full albums if looking for a song
-      if (title.includes("full album") || title.includes("1 hour") || title.includes("loop")) return false;
-      return vid && vid !== "undefined" && filterDuration(v);
-    })
-    .map(mapVideo)
-    .filter(Boolean)
-    .slice(0, limit);
+  try {
+    // Robust access to the YouTube search method
+    const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
+    if (typeof yt.search !== 'function') {
+      console.error("[YouTube Search Error] YouTube.search is not a function. YouTube type:", typeof YouTube);
+      return [];
+    }
 
-  setServerCache(refinedQuery, mapped);
-  return mapped;
+    const results = await yt.search(refinedQuery, { limit: limit + 20, type: 'video' });
+    const BAD_KEYWORDS = ['full album', '1 hour', 'loop', 'compilation', 'karaoke', 'cover version', 'reaction', 'trailer', 'gameplay'];
+    
+    let mapped = results
+      .filter((v: any) => {
+        const title = (v.title || '').toLowerCase();
+        if (BAD_KEYWORDS.some(kw => title.includes(kw))) return false;
+        return filterDuration(v);
+      })
+      .map(mapVideo)
+      .filter(Boolean)
+      .slice(0, limit);
+
+    // FALLBACK: If youtube-sr returns nothing, try the old search-without-api-key
+    if (mapped.length === 0) {
+      console.log(`[YouTube Search] YouTube-sr returned 0 results. Trying fallback...`);
+      const fallbackResults = await search(refinedQuery).catch(() => []);
+      mapped = fallbackResults
+        .filter((v: any) => {
+          const title = (v.title || '').toLowerCase();
+          if (BAD_KEYWORDS.some(kw => title.includes(kw))) return false;
+          return v.id?.videoId && filterDuration(v);
+        })
+        .map(mapVideo)
+        .filter(Boolean)
+        .slice(0, limit);
+    }
+
+    console.log(`[YouTube Search] Query: "${refinedQuery}" -> Results: ${mapped.length}`);
+    setServerCache(refinedQuery, mapped);
+    return mapped;
+  } catch (err) {
+    console.error("[YouTube Search Error]", err);
+    // Secondary fallback in case of catastrophic failure
+    try {
+      const fallbackResults = await search(refinedQuery);
+      return fallbackResults.map(mapVideo).filter(Boolean).slice(0, limit);
+    } catch {
+      return [];
+    }
+  }
 }
 
 // ─── Server ────────────────────────────────────────────────────────────────────
@@ -470,27 +512,33 @@ async function startServer() {
 
     try {
       console.log(`[Server] Importing playlist: ${url}`);
-      const playlist = await YouTube.getPlaylist(url, { limit: 100 });
-      if (!playlist) return res.status(404).json({ error: "Playlist not found or is private" });
+      
+      // Attempt to normalize URL or extract ID
+      let playlistId = url;
+      if (url.includes("list=")) {
+        playlistId = url.split("list=")[1].split("&")[0];
+      }
 
-      const playlistId = Math.random().toString(36).substr(2, 9);
+      const yt = (YouTube as any).default?.getPlaylist ? (YouTube as any).default : YouTube;
+      const playlist = await yt.getPlaylist(playlistId).catch(() => null);
+      
+      if (!playlist) {
+        return res.status(404).json({ error: "Playlist not found. Make sure it is PUBLIC and not a 'Mix' playlist." });
+      }
+
+      await playlist.fetch(100).catch(() => {}); // loads up to 100 videos
+      
+      if (!playlist.videos || playlist.videos.length === 0) {
+        return res.status(400).json({ error: "Playlist is empty or could not be read." });
+      }
+
+      const internalId = Math.random().toString(36).substr(2, 9);
       const playlistName = playlist.title || "Imported Playlist";
 
-      // Create playlist
-      db.prepare("INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)").run(playlistId, req.session.userId, playlistName);
+      // Create playlist in DB
+      db.prepare("INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)").run(internalId, req.session.userId, playlistName);
 
-      // Map and insert tracks
-      type NewTrack = {
-        playlist_id: string;
-        video_id: string;
-        title: string;
-        artist: string;
-        thumbnail: string;
-        duration: string;
-        url: string;
-      };
-
-      const tracks: NewTrack[] = playlist.videos.map(v => {
+      const tracks = playlist.videos.map(v => {
         const videoId = v.id;
         if (!videoId) return null;
         
@@ -498,7 +546,7 @@ async function startServer() {
         if (artist.toLowerCase().endsWith(" - topic")) artist = artist.slice(0, -8);
 
         return {
-          playlist_id: playlistId,
+          playlist_id: internalId,
           video_id: videoId,
           title: cleanTitle(v.title || "Unknown Title"),
           artist: artist,
@@ -506,11 +554,10 @@ async function startServer() {
           duration: v.durationFormatted || "4:00",
           url: `https://www.youtube.com/watch?v=${videoId}`
         };
-      }).filter((t): t is NewTrack => t !== null);
+      }).filter((t: any): t is any => t !== null);
 
       const insertStmt = db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)");
-      
-      const insertMany = db.transaction((tracksToInsert: NewTrack[]) => {
+      const insertMany = db.transaction((tracksToInsert: any[]) => {
         for (const t of tracksToInsert) {
           insertStmt.run(t.playlist_id, t.video_id, t.title, t.artist, t.thumbnail, t.duration, t.url);
         }
@@ -519,14 +566,14 @@ async function startServer() {
       insertMany(tracks);
 
       res.json({
-        id: playlistId,
+        id: internalId,
         name: playlistName,
         tracksCount: tracks.length,
         tracks: tracks.map(t => ({ id: t.video_id, videoId: t.video_id, title: t.title, artist: t.artist, thumbnail: t.thumbnail, duration: t.duration, url: t.url }))
       });
     } catch (error: any) {
       console.error("[Server] Import Error:", error);
-      res.status(500).json({ error: error.message || "Failed to import playlist" });
+      res.status(500).json({ error: "Failed to import playlist. Please try again with a different public playlist." });
     }
   });
 
@@ -601,11 +648,9 @@ async function startServer() {
 
   // ── Music Search ─────────────────────────────────────────────────────────────
   app.get("/api/search", async (req: any, res: any) => {
-    const query = (req.query.q as string) || "lofi hip hop";
-    const searchQuery = `${query} song OR audio`;
+    const query = (req.query.q as string) || "popular music";
     try {
-      const tracks = await youtubeSearch(searchQuery);
-      // Allow browser/CDN to cache for 5 minutes
+      const tracks = await youtubeSearch(query);
       res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
       res.json(tracks);
     } catch (error) {
@@ -614,73 +659,163 @@ async function startServer() {
     }
   });
 
-  // ── Artist Search ────────────────────────────────────────────────────────────
-  // Searches YouTube videos and extracts unique channels as "artists".
-  // Channels whose name closely matches the query are scored higher.
+  // ── Personalized Trends ───────────────────────────────────────────────────────
+  app.get("/api/trends", async (req: any, res: any) => {
+    try {
+      const globalQueries = [
+        'top songs global 2024 official', 
+        'billboard hot 100 official audio', 
+        'trending pop music video', 
+        'hip hop hits 2024 official',
+        'viral songs 2024 official'
+      ];
+      let personalized: any[] = [];
+
+      if (req.session?.userId) {
+        const topArtists = db.prepare(
+          "SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5"
+        ).all(req.session.userId) as any[];
+
+        if (topArtists.length > 0) {
+          const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
+          const artistQueries = topArtists.slice(0, 3).map((a: any) => `${a.artist} popular official`);
+          const results = await Promise.allSettled(artistQueries.map(q => yt.search(q, { limit: 10, type: 'video' })));
+          results.forEach(r => { 
+            if (r.status === 'fulfilled') {
+              const mapped = r.value.map(mapVideo).filter(Boolean);
+              personalized.push(...mapped);
+            }
+          });
+        }
+      }
+
+      // Fetch global trending in parallel
+      const globalResults = await Promise.allSettled(globalQueries.map(q => youtubeSearch(q, 15)));
+      const global: any[] = [];
+      globalResults.forEach(r => { if (r.status === 'fulfilled') global.push(...r.value); });
+
+      // Deduplicate and merge
+      const seen = new Set<string>();
+      const merged: any[] = [];
+      
+      // Shuffle slightly to avoid same order every time
+      const combined = [...personalized, ...global].sort(() => Math.random() - 0.5);
+
+      for (const t of combined) {
+        if (t?.videoId && !seen.has(t.videoId)) { 
+          seen.add(t.videoId); 
+          merged.push(t); 
+        }
+        if (merged.length >= 60) break;
+      }
+
+      res.set('Cache-Control', 'public, max-age=180, stale-while-revalidate=60');
+      res.json(merged);
+    } catch (error) {
+      console.error("[Server] Trends Error:", error);
+      res.status(500).json({ error: "Failed to fetch trends" });
+    }
+  });
+
+  // ── Mood-Based Personalized Search ───────────────────────────────────────────
+  // ?mood=relax&artists=Artist1,Artist2
+  app.get("/api/search/mood", async (req: any, res: any) => {
+    const mood = ((req.query.mood as string) || '').toLowerCase().trim();
+    const artistsParam = (req.query.artists as string) || '';
+    const userArtists = artistsParam ? artistsParam.split(',').map((a: string) => a.trim()).filter(Boolean).slice(0, 3) : [];
+    const seeds = MOOD_SEEDS[mood] || [`${mood} music official`];
+
+    try {
+      const queries: string[] = [];
+      // If we have user artists, mix them with seeds for better personalization
+      if (userArtists.length > 0) {
+        userArtists.forEach(artist => {
+          const randomSeed = seeds[Math.floor(Math.random() * seeds.length)];
+          queries.push(`${artist} ${randomSeed}`);
+        });
+      }
+      
+      // Add general seeds to ensure diversity
+      seeds.forEach(s => queries.push(`${s} official`));
+
+      const results = await Promise.allSettled(queries.slice(0, 6).map(q => youtubeSearch(q, 15)));
+      const seen = new Set<string>();
+      const tracks: any[] = [];
+      results.forEach(r => {
+        if (r.status === 'fulfilled') r.value.forEach((t: any) => {
+          if (t?.videoId && !seen.has(t.videoId)) { 
+            seen.add(t.videoId); 
+            tracks.push(t); 
+          }
+        });
+      });
+
+      // Shuffle tracks for a fresh mix every time
+      tracks.sort(() => Math.random() - 0.5);
+
+      res.set('Cache-Control', 'public, max-age=300');
+      res.json(tracks.slice(0, 40));
+    } catch (error) {
+      console.error("[Server] Mood search error:", error);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  // ── Artist Search (precise: exact name first, then topic channels) ────────────────
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
-    // Broad search for videos to find official channels and topic channels
-    const searchTerm = q ? `${q} official music` : "popular music artists topic";
     try {
-      const results = await search(searchTerm);
+      const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
+      // Use YouTube.search to find videos, then extract unique channels
+      // This is more reliable than channel search which currently crashes
+      const [topicResults, officialResults] = await Promise.all([
+        yt.search(q ? `${q} - Topic` : "popular music artists", { limit: 15, type: 'video' }),
+        yt.search(q ? `${q} official music` : "trending singers", { limit: 15, type: 'video' }),
+      ]);
+      const combinedResults = [...topicResults, ...officialResults];
+      if (combinedResults.length === 0) {
+        console.log(`[Artist Search] YouTube-sr returned 0 results. Trying fallback...`);
+        const [fb1, fb2] = await Promise.all([
+          search(q ? `${q} - Topic` : "popular music artists").catch(() => []),
+          search(q ? `${q} official music` : "trending singers").catch(() => []),
+        ]);
+        combinedResults.push(...(fb1 as any[]), ...(fb2 as any[]));
+      }
+
       const seen = new Set<string>();
       const artists: { name: string; thumbnail: string; score: number }[] = [];
-
-      // If specific search, also try a direct search for the query itself
-      const rawResults = q ? await search(q) : [];
-      const combinedResults = [...(rawResults as any[]), ...(results as any[])];
+      const ql = q.toLowerCase();
 
       for (const v of combinedResults) {
-        let channel: string =
-          v.snippet?.channelTitle ||
-          (v as any).author?.name ||
-          (v as any).channelTitle || "";
+        let channelName = v.channel?.name || "";
+        let channelThumb = v.channel?.icon?.url || v.thumbnail?.url || "";
 
-        if (!channel) {
-          const t = v.title || "";
-          if (t.includes(" - ")) {
-            channel = t.split(" - ")[0].trim();
-          } else if (q && t.toLowerCase().includes(q.toLowerCase())) {
-            // Capitalize the matched query for presentation
-            channel = q.charAt(0).toUpperCase() + q.slice(1).toLowerCase();
-          } else if (t.includes("「") || t.includes("【")) {
-            channel = t.split(/[「【]/)[0].trim();
-          }
-        }
+        if (!channelName) continue;
 
-        // Standardise artist name (remove " - Topic" for the profile display)
-        if (channel.toLowerCase().endsWith(" - topic")) {
-          channel = channel.slice(0, -8);
-        }
+        if (channelName.toLowerCase().endsWith(" - topic")) channelName = channelName.slice(0, -8);
+        if (channelName.toLowerCase().endsWith("vevo")) channelName = channelName.slice(0, -4).trim();
 
-        const thumb: string =
-          v.snippet?.thumbnails?.high?.url ||
-          v.snippet?.thumbnails?.medium?.url ||
-          v.snippet?.thumbnails?.default?.url ||
-          "";
+        if (seen.has(channelName.toLowerCase())) continue;
+        seen.add(channelName.toLowerCase());
 
-        if (!channel || seen.has(channel.toLowerCase())) continue;
-        seen.add(channel.toLowerCase());
-
-        // Score: prioritise channels whose name includes the query string closely
         let score = 0;
         if (q) {
-          const cl = channel.toLowerCase();
-          const ql = q.toLowerCase();
-          if (cl === ql) score = 10;
-          else if (cl.startsWith(ql)) score = 5;
-          else if (cl.includes(ql)) score = 2;
+          const cl = channelName.toLowerCase();
+          if (cl === ql) score = 100;
+          else if (cl.startsWith(ql)) score = 50;
+          else if (cl.includes(ql)) score = 20;
+          else score = 1;
+        } else {
+          score = Math.random(); // random order for generic "trending"
         }
-
-        artists.push({ name: channel, thumbnail: thumb, score });
+        
+        artists.push({ name: channelName.trim(), thumbnail: channelThumb, score });
         if (artists.length >= 30) break;
       }
 
-      // Best-matching channels first
       artists.sort((a, b) => b.score - a.score);
-
-      const response = artists.slice(0, 24).map(({ name, thumbnail }) => ({ name: name.trim(), thumbnail }));
-      console.log(`[Server] Artist search returned ${response.length} results`);
+      const response = artists.map(({ name, thumbnail }) => ({ name, thumbnail }));
+      res.set('Cache-Control', 'public, max-age=300');
       res.json(response);
     } catch (e) {
       console.error("[Server] Artist search error:", e);

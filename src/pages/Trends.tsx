@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search as SearchIcon, Play, TrendingUp, MoreHorizontal, Clock, Heart } from 'lucide-react';
-import { getTrendingTracks } from '../services/api';
+import { getTrends } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
@@ -14,7 +14,7 @@ export const Trends = () => {
   useEffect(() => {
     const fetchTrends = async () => {
       setLoading(true);
-      const data = await getTrendingTracks();
+      const data = await getTrends();
       setResults(data);
       setLoading(false);
     };
@@ -50,7 +50,7 @@ export const Trends = () => {
                <Play className="fill-accent w-4 h-4" /> Play All
             </button>
             <div className="flex items-center gap-2 text-xs font-bold text-text-dim uppercase tracking-widest">
-               <Clock className="w-3.5 h-3.5" /> 24 Tracks • 1h 32m
+               <Clock className="w-3.5 h-3.5" /> {results.length} Track{results.length !== 1 ? 's' : ''}
             </div>
           </div>
           <div className="flex gap-2">

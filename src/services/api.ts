@@ -68,6 +68,45 @@ export const getTrendingTracks = async (): Promise<Track[]> => {
   }
 };
 
+/** Fetch personalized trends (multi-genre + user history) */
+export const getTrends = async (): Promise<Track[]> => {
+  const cacheKey = 'trends:v2';
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/trends`, { credentials: 'include' });
+    if (!response.ok) throw new Error('Failed to fetch trends');
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+};
+
+/** Fetch mood-based personalized tracks */
+export const getMoodTracks = async (mood: string, topArtists: string[] = []): Promise<Track[]> => {
+  const artistsParam = topArtists.slice(0, 2).join(',');
+  const cacheKey = `mood:${mood}:${artistsParam}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const params = new URLSearchParams({ mood });
+    if (artistsParam) params.set('artists', artistsParam);
+    const response = await fetch(`${API_BASE_URL}/api/search/mood?${params}`);
+    if (!response.ok) throw new Error('Mood search failed');
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    return [];
+  }
+};
+
 /** Search for artists (unique channels) */
 export interface Artist {
   name: string;

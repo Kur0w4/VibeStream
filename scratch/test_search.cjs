@@ -1,5 +1,5 @@
 
-import { search } from "youtube-search-without-api-key";
+const { search } = require("youtube-search-without-api-key");
 
 async function test() {
   const globalQueries = ['pop hits 2024', 'hip hop trending', 'electronic music hits', 'indie pop best'];

@@ -1,7 +1,7 @@
 import { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap, ChevronRight } from 'lucide-react';
-import { searchTracks, getTrendingTracks } from '../services/api';
+import { searchTracks, getTrendingTracks, getMoodTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 import { TrackCardSkeleton, HistorySkeleton } from './Skeletons';
@@ -148,14 +148,14 @@ export const Search = () => {
     }
   };
 
-  // Initial load
+  // Initial load: personalized by recent artists
   useEffect(() => {
     if (query || activePill) return;
     if (hasHistory) {
-      const recentArtists = Array.from(new Set(listeningHistory.map(t => t.artist))).slice(0, 2);
+      const recentArtists = Array.from(new Set(listeningHistory.map(t => t.artist))).slice(0, 3);
       performSearch(`${recentArtists.join(' ')} music`);
     } else {
-      performSearch('trending music 2024');
+      performSearch('trending pop music');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -168,11 +168,16 @@ export const Search = () => {
     return () => clearTimeout(id);
   }, [query]);
 
-  // Pill search
+  // Mood pill search: personalized using user's top artists
   useEffect(() => {
     if (!activePill) return;
     setQuery('');
-    performSearch(`${activePill} music playlist`);
+    setLoading(true);
+    const topArtists = Array.from(new Set(listeningHistory.map(t => t.artist))).slice(0, 2);
+    getMoodTracks(activePill.toLowerCase(), topArtists)
+      .then(d => { if (d.length > 0) setResults(d); else return getTrendingTracks().then(setResults); })
+      .catch(() => getTrendingTracks().then(setResults))
+      .finally(() => setLoading(false));
   }, [activePill]);
 
   const quickPicks = listeningHistory.slice(0, 10);
@@ -203,16 +208,16 @@ export const Search = () => {
 
         {/* ─── Filter Pills (YT Music Style) ─── */}
         {!query && (
-          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 animate-in fade-in slide-in-from-left-4 duration-500">
             {MOOD_PILLS.map((pill) => (
               <button
                 key={pill}
                 onClick={() => setActivePill(activePill === pill ? null : pill)}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors border",
+                  "px-5 py-2 rounded-xl text-[13px] font-bold whitespace-nowrap transition-all border shadow-lg",
                   activePill === pill 
-                    ? "bg-white text-black border-white" 
-                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                    ? "bg-accent text-black border-accent scale-105" 
+                    : "bg-white/5 text-white border-white/10 hover:bg-white/10 hover:border-white/20 active:scale-95"
                 )}
               >
                 {pill}
