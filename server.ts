@@ -1,6 +1,7 @@
+console.log("[System] Process starting...");
 import "dotenv/config";
 import express from "express";
-import { createServer as createViteServer } from "vite";
+// Vite is imported dynamically only in dev mode to save memory and avoid production issues
 import path from "path";
 import { fileURLToPath } from "url";
 import { search } from "youtube-search-without-api-key";
@@ -292,6 +293,7 @@ async function youtubeSearch(query: string, limit = 50) {
 
 // ─── Server ────────────────────────────────────────────────────────────────────
 async function startServer() {
+  console.log(`[System] Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
   // Asegurar inicialización de DB antes de configurar el servidor
   try {
     await initDB();
@@ -953,11 +955,20 @@ async function startServer() {
 
   // ── Vite / Dev Server ───────────────────────────────────────────────────────
   if (process.env.NODE_ENV !== "production") {
+    console.log("[System] Initializing Vite Dev Server...");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+  } else {
+    console.log("[System] Serving production assets...");
+    app.use(express.static(path.join(__dirname, "dist")));
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) return next();
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
