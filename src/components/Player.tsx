@@ -263,7 +263,7 @@ export const Player = () => {
           className={cn(
             'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl z-[110]',
             isExpanded
-              ? 'top-[8vh] left-1/2 -translate-x-1/2 w-full max-w-[900px] max-h-[50vh] aspect-video rounded-3xl shadow-[0_0_100px_rgba(56,189,248,0.1)]'
+              ? 'top-0 left-0 right-0 h-[38vh] max-h-none rounded-none shadow-[0_24px_80px_rgba(0,0,0,0.65)] md:top-[8vh] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-[900px] md:max-h-[50vh] md:h-auto md:aspect-video md:rounded-3xl md:shadow-[0_0_100px_rgba(56,189,248,0.1)]'
               : 'bottom-[75px] left-2 right-2 h-[60px] rounded-xl md:bottom-[16px] md:left-[16px] md:right-auto md:w-[64px] md:h-[64px] md:rounded-lg'
           )}
           onClick={() => { if (currentTrack) setIsExpanded(true); }}
@@ -330,7 +330,7 @@ export const Player = () => {
             <motion.button 
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
               onClick={() => setIsExpanded(false)} title="Close expanded view"
-              className="fixed top-6 left-6 md:top-10 md:left-10 p-3 bg-black/30 hover:bg-black/50 rounded-full border border-white/5 text-white z-[150] transition-all hover:scale-105 backdrop-blur-xl">
+              className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-4 md:top-10 md:left-10 p-3 bg-black/40 hover:bg-black/50 rounded-full border border-white/10 text-white z-[150] transition-all hover:scale-105 backdrop-blur-xl shadow-xl">
               <ChevronDown className="w-7 h-7" />
             </motion.button>
           )}
@@ -342,30 +342,30 @@ export const Player = () => {
             <motion.div
               initial={{ opacity: 0, y: '20px' }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: '20px' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-0 z-[100] bg-bg-main/98 backdrop-blur-3xl flex flex-col items-center pt-[8vh] pb-8 px-6 lg:px-12 overflow-hidden"
+              className="fixed inset-0 z-[100] bg-[#03060c] md:bg-bg-main/98 backdrop-blur-3xl flex flex-col items-center pt-[calc(38vh+22px)] md:pt-[8vh] pb-[calc(env(safe-area-inset-bottom)+24px)] md:pb-8 px-5 md:px-6 lg:px-12 overflow-hidden"
             >
               {/* Dynamic Glow */}
-              <div className="absolute inset-0 bg-gradient-to-b from-accent/5 via-transparent to-black pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black via-[#07101b] to-black md:from-accent/5 md:via-transparent md:to-black pointer-events-none" />
               
-              <div className="w-full max-w-[900px] h-[50vh] max-h-[50vh] aspect-video shrink-0 invisible" />
+              <div className="hidden md:block w-full max-w-[900px] h-[50vh] max-h-[50vh] aspect-video shrink-0 invisible" />
               
-              <div className="mt-8 text-center max-w-[900px] w-full relative z-50 flex-1 flex flex-col min-h-0">
-                <div className="shrink-0 mb-6 flex flex-col items-center">
-                  <h2 className="text-3xl lg:text-5xl font-black text-white tracking-tighter mb-2 truncate w-full">{currentTrack.title}</h2>
-                  <p className="text-lg lg:text-2xl text-text-dim font-medium truncate w-full">{currentTrack.artist}</p>
+              <div className="mt-0 md:mt-8 text-center max-w-[900px] w-full relative z-50 flex-1 flex flex-col min-h-0">
+                <div className="shrink-0 mb-5 md:mb-6 flex flex-col items-center">
+                  <h2 className="text-2xl md:text-3xl lg:text-5xl font-black text-white tracking-tight md:tracking-tighter mb-2 truncate w-full">{currentTrack.title}</h2>
+                  <p className="text-sm md:text-lg lg:text-2xl text-text-dim font-medium truncate w-full">{currentTrack.artist}</p>
                 </div>
 
-                <div className="flex flex-col gap-2 mb-8 shrink-0 w-full max-w-2xl mx-auto">
+                <div className="flex flex-col gap-2 mb-7 md:mb-8 shrink-0 w-full max-w-2xl mx-auto">
                   <PlaybackProgress onSeek={handleSeek} formatTime={formatTime} isExpanded />
                 </div>
 
-                <div className="flex items-center justify-center gap-10 lg:gap-16 mb-8 shrink-0">
+                <div className="flex items-center justify-center gap-6 md:gap-10 lg:gap-16 mb-8 shrink-0">
                   <button onClick={toggleShuffle} title="Toggle Shuffle" className={cn("transition-all hover:scale-110", isShuffle ? "text-white" : "text-text-dim hover:text-white")}><Shuffle className="w-6 h-6 lg:w-7 lg:h-7" /></button>
-                  <button onClick={prevTrack} title="Previous Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipBack className="w-10 h-10 lg:w-12 lg:h-12 fill-current" /></button>
-                  <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-20 h-20 lg:w-24 lg:h-24 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10">
-                    {isPlaying ? <Pause className="w-10 h-10 lg:w-12 lg:h-12 fill-current" /> : <Play className="w-10 h-10 lg:w-12 lg:h-12 fill-current ml-2" />}
+                  <button onClick={prevTrack} title="Previous Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipBack className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /></button>
+                  <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-[68px] h-[68px] md:w-20 md:h-20 lg:w-24 lg:h-24 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10">
+                    {isPlaying ? <Pause className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /> : <Play className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current ml-1.5 md:ml-2" />}
                   </button>
-                  <button onClick={() => nextTrack()} title="Next Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipForward className="w-10 h-10 lg:w-12 lg:h-12 fill-current" /></button>
+                  <button onClick={() => nextTrack()} title="Next Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipForward className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /></button>
                   <button onClick={toggleRepeat} title="Toggle Repeat" className={cn("transition-all hover:scale-110 relative", repeatMode !== 'off' ? "text-white" : "text-text-dim hover:text-white")}>
                     <Repeat className="w-6 h-6 lg:w-7 lg:h-7" />
                     {repeatMode === 'one' && <span className="absolute -top-1.5 -right-1.5 text-[9px] font-black bg-white text-black rounded-full w-4 h-4 flex items-center justify-center">1</span>}

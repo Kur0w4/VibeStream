@@ -56,22 +56,24 @@ export const TrackDropdown = ({
   }, [onClose]);
 
   const menu = (
+    <>
+    <div className="track-dropdown-backdrop" onClick={onClose} />
     <div
       ref={menuRef}
       onClick={(e) => e.stopPropagation()}
       style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
-      className="w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2 backdrop-blur-3xl"
+      className="track-dropdown-menu w-56 bg-bg-sidebar border border-white/10 rounded-2xl shadow-2xl py-2 backdrop-blur-3xl"
     >
       <button
         onClick={() => { toggleLike(track); onClose(); }}
-        className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm transition-colors flex items-center gap-3"
+        className="w-full text-left px-5 md:px-4 py-3 md:py-2.5 hover:bg-white/5 active:bg-white/10 text-sm transition-colors flex items-center gap-3"
       >
         <Heart className={cn('w-4 h-4', liked ? 'fill-rose-500 text-rose-500' : 'text-text-dim')} />
         <span className={liked ? 'text-rose-400' : 'text-white'}>{liked ? 'Unlike' : 'Like song'}</span>
       </button>
       <button
         onClick={() => { addToQueue(track); onClose(); }}
-        className="w-full text-left px-4 py-2.5 hover:bg-white/5 text-sm text-white transition-colors flex items-center gap-3"
+        className="w-full text-left px-5 md:px-4 py-3 md:py-2.5 hover:bg-white/5 active:bg-white/10 text-sm text-white transition-colors flex items-center gap-3"
       >
         <ListPlus className="w-4 h-4 text-accent" />
         Add to queue
@@ -82,7 +84,7 @@ export const TrackDropdown = ({
           <p className="px-4 py-1.5 text-[10px] font-black text-text-dim uppercase tracking-widest">Add to playlist</p>
           {playlists.map((pl) => (
             <button key={pl.id} onClick={() => { addTrackToPlaylist(pl.id, track); onClose(); }}
-              className="w-full text-left px-4 py-2 hover:bg-white/5 text-sm text-white transition-colors flex items-center justify-between group/btn">
+              className="w-full text-left px-5 md:px-4 py-3 md:py-2 hover:bg-white/5 active:bg-white/10 text-sm text-white transition-colors flex items-center justify-between group/btn">
               <span className="truncate pr-2 flex items-center gap-2"><Plus className="w-3 h-3 text-text-dim" />{pl.name}</span>
             </button>
           ))}
@@ -95,6 +97,7 @@ export const TrackDropdown = ({
         </>
       )}
     </div>
+    </>
   );
 
   return createPortal(menu, document.body);
@@ -359,7 +362,7 @@ const HorizontalTrackCard = memo(({ track, results, activeDropdown, setActiveDro
         <button
           ref={getTriggerRef(track.id)}
           onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-          className="p-2 text-text-dim hover:text-white rounded-full opacity-0 group-hover:opacity-100 transition-all"
+          className="p-2 text-text-dim hover:text-white rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all touch-visible"
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
@@ -409,7 +412,7 @@ const TrackCard = memo(({ track, results, activeDropdown, setActiveDropdown, get
           <button
             ref={getTriggerRef(track.id)}
             onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
-            className="p-1 text-text-dim hover:text-white rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+            className="p-1.5 text-text-dim hover:text-white rounded-lg transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 touch-visible"
           >
             <MoreHorizontal className="w-5 h-5" />
           </button>
