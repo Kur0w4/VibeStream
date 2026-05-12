@@ -264,36 +264,29 @@ const PlayerInner = () => {
       <audio ref={audioRef} src={SILENT_AUDIO_URI} loop playsInline className="hidden" />
       <div className="pointer-events-auto">
 
-        {/* ══ YouTube Player container (Thumbnail / MV Mode) ══ */}
+        {/* ══ YouTube Player container (Video square / MV Mode) ══ */}
         <div
           className={cn(
-            'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer group shadow-2xl z-[110]',
+            'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-2xl z-[110]',
             isExpanded
-              ? 'top-0 left-0 right-0 h-[38vh] max-h-none rounded-none shadow-[0_24px_80px_rgba(0,0,0,0.65)] md:top-[8vh] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-[900px] md:max-h-[50vh] md:h-auto md:aspect-video md:rounded-3xl md:shadow-[0_0_100px_rgba(56,189,248,0.1)]'
-              : 'bottom-[75px] left-2 right-2 h-[60px] rounded-xl md:bottom-[16px] md:left-[16px] md:right-auto md:w-[64px] md:h-[64px] md:rounded-lg'
+              ? 'top-0 left-0 right-0 h-[42vh] max-h-none rounded-none shadow-[0_24px_80px_rgba(0,0,0,0.65)] md:top-[8vh] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-[900px] md:max-h-[50vh] md:h-auto md:aspect-video md:rounded-3xl md:shadow-[0_0_100px_rgba(56,189,248,0.1)]'
+              : 'bottom-[75px] left-2 w-[80px] h-[80px] rounded-xl md:bottom-[16px] md:left-[16px] md:w-[64px] md:h-[64px] md:rounded-lg md:cursor-pointer md:group'
           )}
-          onClick={() => { if (currentTrack) setIsExpanded(true); }}
         >
-          {/* Mobile playback indicator/controls (mini-bar style) */}
+          {/* Mobile mini: transparent overlay to intercept YT-iframe clicks → open MV */}
           {!isExpanded && (
-            <div className="absolute inset-0 z-[1] md:hidden bg-bg-sidebar/95 backdrop-blur-xl flex items-center px-3 gap-3 border border-white/5 rounded-xl">
-              <img src={currentTrack?.thumbnail} className="w-10 h-10 rounded object-cover shadow-lg shrink-0" alt="" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-white truncate">{currentTrack?.title}</p>
-                <p className="text-[11px] text-text-dim truncate">{currentTrack?.artist}</p>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); togglePause(); }}
-                className="w-10 h-10 text-white rounded-full flex items-center justify-center active:scale-90 transition-transform shrink-0"
-              >
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-              </button>
-            </div>
+            <div
+              className="absolute inset-0 z-[15] md:hidden cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); if (currentTrack) setIsExpanded(true); }}
+            />
           )}
 
           {/* Desktop Hover Indicator */}
           {!isExpanded && (
-            <div className="hidden md:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/60 backdrop-blur-[2px]">
+            <div
+              className="hidden md:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/60 backdrop-blur-[2px] cursor-pointer"
+              onClick={() => { if (currentTrack) setIsExpanded(true); }}
+            >
               <Maximize2 className="text-white w-5 h-5 drop-shadow-md" />
             </div>
           )}
@@ -330,6 +323,32 @@ const PlayerInner = () => {
           </div>
         </div>
 
+        {/* ══ Mobile Mini Control Bar (sits right of the video square) ══ */}
+        <AnimatePresence>
+          {!isExpanded && currentTrack && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed bottom-[75px] left-[92px] right-2 h-[80px] z-[109] md:hidden bg-bg-sidebar/95 backdrop-blur-xl border border-white/5 rounded-xl flex items-center px-3 gap-2"
+            >
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
+                <p className="text-[13px] font-bold text-white truncate leading-tight">{currentTrack.title}</p>
+                <p className="text-[11px] text-text-dim truncate mt-0.5">{currentTrack.artist}</p>
+              </div>
+              <div className="flex items-center shrink-0 gap-0.5">
+                <button onClick={(e) => { e.stopPropagation(); prevTrack(); }} title="Previous" className="p-2 text-text-dim active:scale-90 transition-transform">
+                  <SkipBack className="w-[18px] h-[18px] fill-current" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); togglePause(); }} title={isPlaying ? 'Pause' : 'Play'} className="w-9 h-9 bg-white text-black rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-md mx-0.5">
+                  {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); nextTrack(); }} title="Next" className="p-2 text-text-dim active:scale-90 transition-transform">
+                  <SkipForward className="w-[18px] h-[18px] fill-current" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ══ MV Close Button ══ */}
         <AnimatePresence>
           {isExpanded && currentTrack && (
@@ -342,40 +361,106 @@ const PlayerInner = () => {
           )}
         </AnimatePresence>
 
-        {/* ══ Expanded view overlay (Modo MV) ══ */}
+        {/* ══ Expanded view overlay (MV Mode — YouTube Music style) ══ */}
         <AnimatePresence>
           {isExpanded && currentTrack && (
             <motion.div
-              initial={{ opacity: 0, y: '20px' }} animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: '20px' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-0 z-[100] bg-[#03060c] md:bg-bg-main/98 backdrop-blur-3xl flex flex-col items-center pt-[calc(38vh+22px)] md:pt-[8vh] pb-[calc(env(safe-area-inset-bottom)+24px)] md:pb-8 px-5 md:px-6 lg:px-12 overflow-hidden"
+              initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }} transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+              className="fixed inset-0 z-[100] bg-[#080c12] md:bg-bg-main/98 backdrop-blur-3xl flex flex-col overflow-hidden"
             >
-              {/* Dynamic Glow */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black via-[#07101b] to-black md:from-accent/5 md:via-transparent md:to-black pointer-events-none" />
-              
-              <div className="hidden md:block w-full max-w-[900px] h-[50vh] max-h-[50vh] aspect-video shrink-0 invisible" />
-              
-              <div className="mt-0 md:mt-8 text-center max-w-[900px] w-full relative z-50 flex-1 flex flex-col min-h-0">
-                <div className="shrink-0 mb-5 md:mb-6 flex flex-col items-center">
-                  <h2 className="text-2xl md:text-3xl lg:text-5xl font-black text-white tracking-tight md:tracking-tighter mb-2 truncate w-full">{currentTrack.title}</h2>
-                  <p className="text-sm md:text-lg lg:text-2xl text-text-dim font-medium truncate w-full">{currentTrack.artist}</p>
+              {/* Subtle ambient glow behind video */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050810] to-[#080c12] pointer-events-none z-0" />
+
+              {/* ── Desktop: invisible spacer for the floating video container ── */}
+              <div className="hidden md:flex w-full justify-center shrink-0">
+                <div className="w-full max-w-[900px] h-[8vh]" />
+              </div>
+              <div className="hidden md:flex w-full justify-center shrink-0">
+                <div className="w-full max-w-[900px] aspect-video max-h-[50vh] invisible" />
+              </div>
+
+              {/* ── Mobile: spacer equal to the video height (42vh) ── */}
+              <div className="md:hidden shrink-0 h-[42vh]" />
+
+              {/* ── Main content area (below video on both layouts) ── */}
+              <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full md:max-w-[900px] md:mx-auto md:mt-6 px-6 md:px-0">
+
+                {/* Track info: left-aligned on mobile (YT Music style), centered on desktop */}
+                <div className="shrink-0 mt-5 md:mt-0 mb-5 md:mb-6 md:text-center">
+                  <h2 className="text-[22px] md:text-3xl lg:text-5xl font-black text-white tracking-tight leading-tight truncate">
+                    {currentTrack.title}
+                  </h2>
+                  <p className="text-[15px] md:text-lg lg:text-2xl text-text-dim font-medium truncate mt-1">
+                    {currentTrack.artist}
+                  </p>
                 </div>
 
-                <div className="flex flex-col gap-2 mb-7 md:mb-8 shrink-0 w-full max-w-2xl mx-auto">
+                {/* Progress bar */}
+                <div className="shrink-0 mb-6 md:mb-8 w-full max-w-2xl md:mx-auto">
                   <PlaybackProgress onSeek={handleSeek} formatTime={formatTime} isExpanded />
                 </div>
 
-                <div className="flex items-center justify-center gap-6 md:gap-10 lg:gap-16 mb-8 shrink-0">
-                  <button onClick={toggleShuffle} title="Toggle Shuffle" className={cn("transition-all hover:scale-110", isShuffle ? "text-white" : "text-text-dim hover:text-white")}><Shuffle className="w-6 h-6 lg:w-7 lg:h-7" /></button>
-                  <button onClick={prevTrack} title="Previous Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipBack className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /></button>
-                  <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"} className="w-[68px] h-[68px] md:w-20 md:h-20 lg:w-24 lg:h-24 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10">
-                    {isPlaying ? <Pause className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /> : <Play className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current ml-1.5 md:ml-2" />}
+                {/* Playback controls */}
+                <div className="flex items-center justify-between md:justify-center md:gap-12 mb-6 shrink-0 px-1 md:px-0">
+                  <button onClick={toggleShuffle} title="Toggle Shuffle"
+                    className={cn("p-2 transition-all active:scale-90", isShuffle ? "text-accent" : "text-text-dim")}>
+                    <Shuffle className="w-[22px] h-[22px]" />
                   </button>
-                  <button onClick={() => nextTrack()} title="Next Track" className="text-white hover:text-accent transition-all hover:scale-110 active:scale-95"><SkipForward className="w-9 h-9 md:w-10 md:h-10 lg:w-12 lg:h-12 fill-current" /></button>
-                  <button onClick={toggleRepeat} title="Toggle Repeat" className={cn("transition-all hover:scale-110 relative", repeatMode !== 'off' ? "text-white" : "text-text-dim hover:text-white")}>
-                    <Repeat className="w-6 h-6 lg:w-7 lg:h-7" />
-                    {repeatMode === 'one' && <span className="absolute -top-1.5 -right-1.5 text-[9px] font-black bg-white text-black rounded-full w-4 h-4 flex items-center justify-center">1</span>}
+                  <button onClick={prevTrack} title="Previous Track"
+                    className="p-2 text-white transition-all active:scale-90">
+                    <SkipBack className="w-9 h-9 fill-current" />
                   </button>
+                  <button onClick={togglePause} title={isPlaying ? "Pause" : "Play"}
+                    className="w-16 h-16 md:w-20 md:h-20 bg-white text-black rounded-full flex items-center justify-center active:scale-95 transition-all shadow-xl shadow-white/10">
+                    {isPlaying
+                      ? <Pause className="w-7 h-7 md:w-9 md:h-9 fill-current" />
+                      : <Play className="w-7 h-7 md:w-9 md:h-9 fill-current ml-1" />}
+                  </button>
+                  <button onClick={() => nextTrack()} title="Next Track"
+                    className="p-2 text-white transition-all active:scale-90">
+                    <SkipForward className="w-9 h-9 fill-current" />
+                  </button>
+                  <button onClick={toggleRepeat} title="Toggle Repeat"
+                    className={cn("p-2 transition-all active:scale-90 relative", repeatMode !== 'off' ? "text-accent" : "text-text-dim")}>
+                    <Repeat className="w-[22px] h-[22px]" />
+                    {repeatMode === 'one' && (
+                      <span className="absolute top-0.5 right-0.5 text-[8px] font-black bg-accent text-black rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* ── Bottom tabs (YT Music style) ── */}
+                <div className="shrink-0 border-t border-white/8 mt-auto pb-[env(safe-area-inset-bottom)]">
+                  <div className="flex items-stretch h-14">
+                    <button
+                      onClick={() => { setIsExpanded(false); setShowQueue(true); }}
+                      className="flex-1 flex flex-col items-center justify-center gap-0.5 text-text-dim hover:text-white transition-colors active:bg-white/5 rounded-xl"
+                    >
+                      <ListMusic className="w-4 h-4" />
+                      <span className="text-[11px] font-bold tracking-wide">Up next</span>
+                    </button>
+                    <div className="w-px bg-white/8 my-3" />
+                    <button
+                      onClick={toggleShuffle}
+                      className={cn("flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:bg-white/5 rounded-xl",
+                        isShuffle ? "text-accent" : "text-text-dim hover:text-white")}
+                    >
+                      <Shuffle className="w-4 h-4" />
+                      <span className="text-[11px] font-bold tracking-wide">Shuffle</span>
+                    </button>
+                    <div className="w-px bg-white/8 my-3" />
+                    <button
+                      onClick={toggleRepeat}
+                      className={cn("flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:bg-white/5 rounded-xl",
+                        repeatMode !== 'off' ? "text-accent" : "text-text-dim hover:text-white")}
+                    >
+                      <Repeat className="w-4 h-4" />
+                      <span className="text-[11px] font-bold tracking-wide">
+                        {repeatMode === 'one' ? 'Repeat 1' : 'Repeat'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

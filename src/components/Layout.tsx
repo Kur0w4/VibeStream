@@ -30,7 +30,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       <main className="flex-1 flex flex-col relative overflow-hidden z-10">
         <TopBar />
         {/* Padding bottom: 150px on mobile (for mobile nav + mini player), 96px on desktop (for bottom player) */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-[150px] md:pb-[96px] px-0 overscroll-contain">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-[165px] md:pb-[96px] px-0 overscroll-contain">
           {children}
         </div>
       </main>
