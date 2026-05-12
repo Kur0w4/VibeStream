@@ -2,8 +2,10 @@ import React, { memo, useRef, useState, useEffect, useCallback } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, Repeat, Shuffle,
   Maximize2, VolumeX, ChevronDown, AlertTriangle, ListMusic, X, Trash2,
+  Download, CheckCircle2, Loader2, ArrowDownCircle
 } from 'lucide-react';
-import { usePlayerStore } from '../store/usePlayerStore';
+import { usePlayerStore, API_BASE_URL } from '../store/usePlayerStore';
+import { offlineService } from '../lib/offlineService';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -33,6 +35,37 @@ const PlayerInner = () => {
   const [playerError, setPlayerError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const isFirstLoad = useRef(true);
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  const { downloadedIds, downloadingIds, toggleDownload } = usePlayerStore();
+
+  // ─── Offline Storage Handling ──────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+
+    const loadLocal = async () => {
+      if (currentTrack && downloadedIds.includes(currentTrack.videoId)) {
+        try {
+          const trackData = await offlineService.getTrack(currentTrack.videoId);
+          if (trackData && active) {
+            objectUrl = URL.createObjectURL(trackData.blob);
+            setLocalUrl(objectUrl);
+            return;
+          }
+        } catch (err) {
+          console.error("[Offline] Failed to load local blob:", err);
+        }
+      }
+      if (active) setLocalUrl(null);
+    };
+
+    loadLocal();
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [currentTrack, downloadedIds]);
 
   // ─── Native Audio Handlers ──────────────────────────────────────────────────
   
@@ -152,7 +185,7 @@ const PlayerInner = () => {
     <div className={cn('fixed inset-0 pointer-events-none z-50', !currentTrack && 'opacity-0')}>
       <audio 
         ref={audioRef} 
-        src={currentTrack ? `/api/stream/${currentTrack.videoId}` : ''}
+        src={localUrl || (currentTrack ? `${API_BASE_URL}/api/stream/${currentTrack.videoId}` : '')}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
@@ -294,6 +327,43 @@ const PlayerInner = () => {
                   <p className="text-[15px] md:text-lg lg:text-2xl text-text-dim font-medium truncate mt-1">
                     {currentTrack.artist}
                   </p>
+                </div>
+
+                {/* Download / Info Bar */}
+                <div className="shrink-0 flex items-center justify-between mb-8 md:max-w-2xl md:mx-auto w-full px-1">
+                   <div className="flex items-center gap-6">
+                      <button 
+                        onClick={() => toggleDownload(currentTrack)}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 transition-all active:scale-90",
+                          downloadedIds.includes(currentTrack.videoId) ? "text-accent" : "text-text-dim hover:text-white"
+                        )}
+                      >
+                        <div className={cn(
+                          "p-3 rounded-full bg-white/5 border border-white/10",
+                          downloadingIds.includes(currentTrack.videoId) && "animate-pulse"
+                        )}>
+                          {downloadingIds.includes(currentTrack.videoId) ? (
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          ) : downloadedIds.includes(currentTrack.videoId) ? (
+                            <CheckCircle2 className="w-6 h-6" />
+                          ) : (
+                            <ArrowDownCircle className="w-6 h-6" />
+                          )}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {downloadingIds.includes(currentTrack.videoId) ? 'Downloading' : 
+                           downloadedIds.includes(currentTrack.videoId) ? 'Offline' : 'Download'}
+                        </span>
+                      </button>
+
+                      <button className="flex flex-col items-center gap-1.5 text-text-dim hover:text-white transition-all active:scale-90">
+                         <div className="p-3 rounded-full bg-white/5 border border-white/10">
+                            <ListMusic className="w-6 h-6" />
+                         </div>
+                         <span className="text-[10px] font-black uppercase tracking-widest">Add to Playlist</span>
+                      </button>
+                   </div>
                 </div>
 
                 {/* Progress bar */}

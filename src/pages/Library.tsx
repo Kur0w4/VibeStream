@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library as LibraryIcon, ListMusic, Mic2, Disc, Play, Plus, Clock, X, ArrowRight, Heart, MoreHorizontal } from 'lucide-react';
+import { Library as LibraryIcon, ListMusic, Mic2, Disc, Play, Plus, Clock, X, ArrowRight, Heart, MoreHorizontal, ArrowDownCircle } from 'lucide-react';
 import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
@@ -8,7 +8,7 @@ import { cn } from '../lib/utils';
 export const Library = () => {
   const navigate = useNavigate();
   const {
-    playlists, likedSongs, followedArtists, listeningHistory,
+    playlists, likedSongs, followedArtists, listeningHistory, downloadedIds,
     playTrack, currentTrack, isPlaying, createPlaylist, toggleLike
   } = usePlayerStore();
 
@@ -32,6 +32,7 @@ export const Library = () => {
     { icon: Mic2, title: 'Artists', count: followedArtists?.length ?? 0, to: '/artists', color: 'from-pink-500/20 to-rose-500/10', iconColor: 'text-pink-400' },
     { icon: Disc, title: 'Liked Songs', count: likedSongs?.length ?? 0, to: '/liked-songs', color: 'from-rose-500/20 to-red-500/10', iconColor: 'text-rose-400' },
     { icon: LibraryIcon, title: 'History', count: listeningHistory?.length ?? 0, to: '/library/history', color: 'from-blue-500/20 to-cyan-500/10', iconColor: 'text-blue-400' },
+    { icon: ArrowDownCircle, title: 'Downloads', count: downloadedIds?.length ?? 0, to: '/library/offline', color: 'from-green-500/20 to-emerald-500/10', iconColor: 'text-green-400' },
   ];
 
   return (

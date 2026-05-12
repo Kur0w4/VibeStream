@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { offlineService } from '../lib/offlineService';
 
 // ─── Firebase Auth Singleton ─────────────────────────────────────────────────
 // Imported once at module level to avoid repeated dynamic import resolution
@@ -53,6 +54,8 @@ interface PlayerState {
   likedSongs: Track[];
   followedArtists: { name: string; thumbnail: string }[];
   listeningHistory: Track[];
+  downloadedIds: string[]; // List of videoIds
+  downloadingIds: string[]; // List of videoIds currently being downloaded
 
   // Player actions
   playTrack: (track: Track, context?: Track[]) => void;
@@ -92,6 +95,10 @@ interface PlayerState {
   followArtist: (artist: { name: string; thumbnail: string }) => Promise<void>;
   unfollowArtist: (name: string) => Promise<void>;
   addToHistory: (track: Track) => Promise<void>;
+  
+  // Offline Actions
+  initOffline: () => Promise<void>;
+  toggleDownload: (track: Track) => Promise<void>;
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -159,6 +166,8 @@ export const usePlayerStore = create<PlayerState>()(
       likedSongs: [] as Track[],
       followedArtists: [] as { name: string; thumbnail: string }[],
       listeningHistory: [] as Track[],
+      downloadedIds: [] as string[],
+      downloadingIds: [] as string[],
 
       // ── Player ──────────────────────────────────────────────────────────────────
       playTrack: (track, context) => {
@@ -475,25 +484,70 @@ export const usePlayerStore = create<PlayerState>()(
 
       // ── History ──────────────────────────────────────────────────────────────
       addToHistory: async (track) => {
-        const { user } = get();
-        if (user) {
-          apiFetch('/api/history', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(track) 
-          }).catch(() => {});
-        }
-        set((s) => {
-          const hist = s.listeningHistory.filter((t) => t.id !== track.id);
-          hist.unshift(track);
-          return { listeningHistory: hist.slice(0, 100) };
-        });
+        try {
+          await apiFetch('/api/history', { method: 'POST', body: JSON.stringify(track) });
+          set((s) => ({ listeningHistory: [track, ...s.listeningHistory.filter(t => t.videoId !== track.videoId)].slice(0, 50) }));
+        } catch {}
+      },
+      
+      // ── Offline Actions ──────────────────────────────────────────────────────
+      initOffline: async () => {
+        const ids = await offlineService.getAllDownloadedIds();
+        set({ downloadedIds: ids });
       },
 
+      toggleDownload: async (track) => {
+        const { downloadedIds, downloadingIds } = get();
+        const isDownloaded = downloadedIds.includes(track.videoId);
+        const isDownloading = downloadingIds.includes(track.videoId);
 
+        if (isDownloading) return;
+
+        if (isDownloaded) {
+          // Remove download
+          await offlineService.deleteTrack(track.videoId);
+          set(s => ({
+            downloadedIds: s.downloadedIds.filter(id => id !== track.videoId)
+          }));
+        } else {
+          // Start download
+          set(s => ({ downloadingIds: [...s.downloadingIds, track.videoId] }));
+          
+          try {
+            // Fetch the stream as a blob
+            const streamUrl = `${API_BASE_URL}/api/stream/${track.videoId}`;
+            const response = await fetch(streamUrl);
+            if (!response.ok) throw new Error("Failed to fetch stream");
+            
+            const blob = await response.blob();
+            
+            await offlineService.saveTrack({
+              videoId: track.videoId,
+              blob,
+              metadata: {
+                title: track.title,
+                artist: track.artist,
+                thumbnail: track.thumbnail,
+                duration: track.duration
+              },
+              savedAt: Date.now()
+            });
+
+            set(s => ({
+              downloadedIds: [...s.downloadedIds, track.videoId],
+              downloadingIds: s.downloadingIds.filter(id => id !== track.videoId)
+            }));
+          } catch (error) {
+            console.error("[Offline] Download failed:", error);
+            set(s => ({
+              downloadingIds: s.downloadingIds.filter(id => id !== track.videoId)
+            }));
+          }
+        }
+      }
     }),
     {
-      name: 'vibestream-v2',
+      name: 'vibestream-player-storage',
       partialize: (s) => ({
         volume: s.volume,
         currentTrack: s.currentTrack,

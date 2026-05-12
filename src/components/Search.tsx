@@ -1,6 +1,6 @@
 import { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap, ChevronRight } from 'lucide-react';
+import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { searchTracks, getTrendingTracks, getMoodTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
@@ -343,8 +343,9 @@ export const Search = () => {
  * Horizontal List Track Card (Used for Quick Picks) 
  */
 const HorizontalTrackCard = memo(({ track, results, activeDropdown, setActiveDropdown, getTriggerRef, getRefForId }: any) => {
-  const { playTrack, currentTrack, isPlaying, togglePause } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, togglePause, downloadedIds } = usePlayerStore();
   const isActive = currentTrack?.id === track.id;
+  const isDownloaded = downloadedIds.includes(track.videoId);
 
   return (
     <div
@@ -360,7 +361,10 @@ const HorizontalTrackCard = memo(({ track, results, activeDropdown, setActiveDro
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className={cn("text-[14px] font-bold truncate", isActive ? "text-accent" : "text-white")}>{track.title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className={cn("text-[14px] font-bold truncate", isActive ? "text-accent" : "text-white")}>{track.title}</p>
+          {isDownloaded && <CheckCircle2 className="w-3 h-3 text-accent shrink-0" />}
+        </div>
         <p className="text-[12px] text-text-dim truncate">{track.artist}</p>
       </div>
       <div onClick={(e) => e.stopPropagation()}>
@@ -381,8 +385,9 @@ const HorizontalTrackCard = memo(({ track, results, activeDropdown, setActiveDro
  * Square Track Card (Used for Carousels)
  */
 const TrackCard = memo(({ track, results, activeDropdown, setActiveDropdown, getTriggerRef, getRefForId }: any) => {
-  const { playTrack, currentTrack, isPlaying, togglePause } = usePlayerStore();
+  const { playTrack, currentTrack, isPlaying, togglePause, downloadedIds } = usePlayerStore();
   const isActive = currentTrack?.id === track.id;
+  const isDownloaded = downloadedIds.includes(track.videoId);
 
   return (
     <div
@@ -410,7 +415,10 @@ const TrackCard = memo(({ track, results, activeDropdown, setActiveDropdown, get
       {/* Info */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn('text-[15px] font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
+          <div className="flex items-center gap-1.5">
+            <p className={cn('text-[15px] font-bold truncate leading-tight', isActive ? 'text-accent' : 'text-white')}>{track.title}</p>
+            {isDownloaded && <CheckCircle2 className="w-3.5 h-3.5 text-accent shrink-0" />}
+          </div>
           <p className="text-[13px] text-text-dim truncate mt-0.5">{track.artist}</p>
         </div>
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>

@@ -12,8 +12,10 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const isAuthPage = location.pathname === '/auth';
 
   React.useEffect(() => {
+    const { initAuth, initOffline } = usePlayerStore.getState();
     initAuth();
-  }, [initAuth]);
+    initOffline();
+  }, []);
 
   if (isAuthPage) {
     return (

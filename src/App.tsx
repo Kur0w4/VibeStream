@@ -20,6 +20,7 @@ const ArtistProfile = lazy(() => import('./pages/ArtistProfile').then(m => ({ de
 const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
 const Auth = lazy(() => import('./pages/Auth').then(m => ({ default: m.Auth })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const OfflineTracks = lazy(() => import('./pages/OfflineTracks').then(m => ({ default: m.OfflineTracks })));
 
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-20 animate-in fade-in duration-500">
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/artists/:name" element={<ArtistProfile />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/library/offline" element={<OfflineTracks />} />
           </Routes>
         </Suspense>
       </Layout>
