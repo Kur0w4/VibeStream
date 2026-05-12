@@ -29,93 +29,99 @@ const db = createClient({
 });
 
 async function initDB() {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL UNIQUE,
-      email TEXT UNIQUE,
-      password_hash TEXT,
-      firebase_uid TEXT UNIQUE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+  console.log("[DB] Initializing tables...");
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,
+        password_hash TEXT,
+        firebase_uid TEXT UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS liked_songs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      video_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      artist TEXT NOT NULL,
-      thumbnail TEXT NOT NULL,
-      duration TEXT NOT NULL,
-      url TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, video_id),
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS liked_songs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        thumbnail TEXT NOT NULL,
+        duration TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, video_id),
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
 
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS playlists (
-      id TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS playlists (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
 
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS playlist_tracks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      playlist_id TEXT NOT NULL,
-      video_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      artist TEXT NOT NULL,
-      thumbnail TEXT NOT NULL,
-      duration TEXT NOT NULL,
-      url TEXT NOT NULL,
-      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(playlist_id, video_id),
-      FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
-    );
-  `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS playlist_tracks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        playlist_id TEXT NOT NULL,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        thumbnail TEXT NOT NULL,
+        duration TEXT NOT NULL,
+        url TEXT NOT NULL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(playlist_id, video_id),
+        FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+      );
+    `);
 
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS listen_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      video_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      artist TEXT NOT NULL,
-      thumbnail TEXT NOT NULL,
-      duration TEXT NOT NULL,
-      url TEXT NOT NULL,
-      listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS listen_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        thumbnail TEXT NOT NULL,
+        duration TEXT NOT NULL,
+        url TEXT NOT NULL,
+        listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
 
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS followed_artists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      thumbnail TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, name),
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS followed_artists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        thumbnail TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, name),
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
 
-  // Manual Migrations
-  try { await db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE;"); } catch {}
-  try { await db.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;"); } catch {}
-  try { await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT;"); } catch {}
+    // Manual Migrations
+    try { await db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE;"); } catch {}
+    try { await db.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;"); } catch {}
+    try { await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT;"); } catch {}
+    
+    console.log("[DB] Tables initialized successfully.");
+  } catch (error) {
+    console.error("[DB Error] Failed to initialize tables:", error);
+    throw error;
+  }
 }
-
-initDB();
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function cleanTitle(title: string) {
@@ -286,6 +292,14 @@ async function youtubeSearch(query: string, limit = 50) {
 
 // ─── Server ────────────────────────────────────────────────────────────────────
 async function startServer() {
+  // Asegurar inicialización de DB antes de configurar el servidor
+  try {
+    await initDB();
+  } catch (err) {
+    console.error("[Fatal] Database initialization failed. Exiting.");
+    process.exit(1);
+  }
+
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -951,4 +965,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("[Fatal] Server failed to start:", err);
+  process.exit(1);
+});
