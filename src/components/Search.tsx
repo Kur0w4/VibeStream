@@ -1,6 +1,6 @@
 import { useState, useEffect, memo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Search as SearchIcon, Play, Pause, Heart, MoreHorizontal, Plus, ListPlus, Zap, ChevronRight, CheckCircle2, Download, Loader2 } from 'lucide-react';
 import { searchTracks, getTrendingTracks, getMoodTracks } from '../services/api';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
@@ -25,8 +25,10 @@ export const TrackDropdown = ({
   onClose: () => void; 
   triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }) => {
-  const { playlists, addTrackToPlaylist, toggleLike, likedSongs, addToQueue } = usePlayerStore();
+  const { playlists, addTrackToPlaylist, toggleLike, likedSongs, addToQueue, toggleDownload, downloadedIds, downloadingIds } = usePlayerStore();
   const liked = likedSongs?.some((t) => t.id === track.id);
+  const isDownloaded = downloadedIds.includes(track.videoId);
+  const isDownloading = downloadingIds.includes(track.videoId);
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
 
@@ -77,6 +79,21 @@ export const TrackDropdown = ({
       >
         <ListPlus className="w-4 h-4 text-accent" />
         Add to queue
+      </button>
+      <button
+        onClick={() => { toggleDownload(track); onClose(); }}
+        className="w-full text-left px-5 md:px-4 py-3 md:py-2.5 hover:bg-white/5 active:bg-white/10 text-sm transition-colors flex items-center gap-3"
+      >
+        {isDownloading ? (
+          <Loader2 className="w-4 h-4 text-accent animate-spin" />
+        ) : isDownloaded ? (
+          <CheckCircle2 className="w-4 h-4 text-accent" />
+        ) : (
+          <Download className="w-4 h-4 text-text-dim" />
+        )}
+        <span className={isDownloaded ? 'text-accent' : 'text-white'}>
+          {isDownloading ? 'Downloading...' : isDownloaded ? 'Downloaded' : 'Download for offline'}
+        </span>
       </button>
       {playlists?.length > 0 && (
         <>

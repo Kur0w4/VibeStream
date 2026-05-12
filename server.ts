@@ -9,7 +9,7 @@ import { createClient } from "@libsql/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
-import YouTube from "youtube-sr";
+import { YouTube } from "youtube-sr";
 import ytdl from "@distube/ytdl-core";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -241,14 +241,7 @@ async function youtubeSearch(query: string, limit = 50) {
   if (cached) return cached;
 
   try {
-    // Robust access to the YouTube search method
-    const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
-    if (typeof yt.search !== 'function') {
-      console.error("[YouTube Search Error] YouTube.search is not a function. YouTube type:", typeof YouTube);
-      return [];
-    }
-
-    const results = await yt.search(refinedQuery, { limit: limit + 20, type: 'video' });
+    const results = await YouTube.search(refinedQuery, { limit: limit + 20, type: 'video' });
     const BAD_KEYWORDS = ['full album', '1 hour', 'loop', 'compilation', 'karaoke', 'cover version', 'reaction', 'trailer', 'gameplay'];
     
     let mapped = results
@@ -584,8 +577,7 @@ async function startServer() {
         playlistId = url.split("list=")[1].split("&")[0];
       }
 
-      const yt = (YouTube as any).default?.getPlaylist ? (YouTube as any).default : YouTube;
-      const playlist = await yt.getPlaylist(playlistId).catch(() => null);
+      const playlist = await YouTube.getPlaylist(playlistId).catch(() => null);
       
       if (!playlist) {
         return res.status(404).json({ error: "Playlist not found. Make sure it is PUBLIC." });
@@ -624,6 +616,7 @@ async function startServer() {
 
       // Batch insert tracks
       for (const t of tracks) {
+        if (!t) continue;
         await db.execute({
           sql: "INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
           args: [t.playlist_id, t.video_id, t.title, t.artist, t.thumbnail, t.duration, t.url]
@@ -770,8 +763,7 @@ async function startServer() {
   app.get("/api/search/artist", async (req: any, res: any) => {
     const query = (req.query.q as string) || "popular artists";
     try {
-      const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
-      const results = await yt.search(query, { limit: 15, type: 'channel' });
+      const results = await YouTube.search(query, { limit: 15, type: 'channel' });
       
       const artists = results.map((c: any) => ({
         name: c.name,
@@ -833,9 +825,8 @@ async function startServer() {
         });
 
         if (topArtistsRes.rows.length > 0) {
-          const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
           const artistQueries = topArtistsRes.rows.slice(0, 3).map((a: any) => `${a.artist} popular official`);
-          const results = await Promise.allSettled(artistQueries.map(q => yt.search(q, { limit: 10, type: 'video' })));
+          const results = await Promise.allSettled(artistQueries.map(q => YouTube.search(q, { limit: 10, type: 'video' })));
           results.forEach(r => { 
             if (r.status === 'fulfilled') {
               const mapped = r.value.map(mapVideo).filter(Boolean);
