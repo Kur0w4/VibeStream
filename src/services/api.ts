@@ -1,11 +1,49 @@
 import { Track, API_BASE_URL } from '../store/usePlayerStore';
 
+// ─── In-Memory Search Cache ──────────────────────────────────────────────────
+// Prevents redundant network requests for identical queries within a 5-minute window.
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const searchCache = new Map<string, CacheEntry<Track[]>>();
+
+function getCached(key: string): Track[] | null {
+  const entry = searchCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    searchCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(key: string, data: Track[]): void {
+  // Limit cache size to avoid unbounded memory growth
+  if (searchCache.size >= 50) {
+    const firstKey = searchCache.keys().next().value;
+    if (firstKey !== undefined) searchCache.delete(firstKey);
+  }
+  searchCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL });
+}
+
+// ─── API Functions ──────────────────────────────────────────────────────────
+
 /** Search for songs/tracks */
 export const searchTracks = async (query: string): Promise<Track[]> => {
+  const cacheKey = `search:${query}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}&_t=${Date.now()}`);
+    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error('Search failed');
-    return await response.json();
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
   } catch (error) {
     console.error('API Error:', error);
     return [];
@@ -14,10 +52,16 @@ export const searchTracks = async (query: string): Promise<Track[]> => {
 
 /** Fetch trending songs (empty query search) */
 export const getTrendingTracks = async (): Promise<Track[]> => {
+  const cacheKey = 'trending';
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search?_t=${Date.now()}`);
+    const response = await fetch(`${API_BASE_URL}/api/search`);
     if (!response.ok) throw new Error('Failed to fetch trending');
-    return await response.json();
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
   } catch (error) {
     console.error('API Error:', error);
     return [];
@@ -46,10 +90,16 @@ export const searchArtists = async (query: string): Promise<Artist[]> => {
 
 /** Get tracks for a specific artist profile */
 export const getArtistTracks = async (artistName: string): Promise<Track[]> => {
+  const cacheKey = `artist:${artistName}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/artist/${encodeURIComponent(artistName)}/tracks`);
     if (!response.ok) throw new Error('Failed to fetch artist tracks');
-    return await response.json();
+    const data = await response.json();
+    setCache(cacheKey, data);
+    return data;
   } catch (error) {
     console.error('API Error:', error);
     return [];

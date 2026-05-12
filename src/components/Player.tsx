@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { memo, useRef, useState, useEffect, useCallback } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, Repeat, Shuffle,
   Maximize2, VolumeX, ChevronDown, AlertTriangle, ListMusic, X, Trash2,
@@ -8,9 +8,20 @@ import { cn } from '../lib/utils';
 import { loadYouTubeApi } from '../lib/youtube';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// ─── Pure Helpers (defined outside component to avoid recreation on each render) ─
+
 const YT_DIV_ID = 'vibestream-yt-player';
 
-export const Player = () => {
+function formatTime(seconds: number): string {
+  if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
+  const min = Math.floor(seconds / 60);
+  const sec = Math.floor(seconds % 60);
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+
+
+const PlayerInner = () => {
   const {
     currentTrack, isPlaying, togglePause, volume, setVolume,
     progress, setProgress, duration, setDuration, setIsPlaying,
@@ -59,12 +70,7 @@ export const Player = () => {
     }, 500);
   }, [setProgress, setDuration]);
 
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
-    const min = Math.floor(seconds / 60);
-    const sec = Math.floor(seconds % 60);
-    return `${min}:${sec.toString().padStart(2, '0')}`;
-  };
+
 
   // ─── Create YT Player once ─────────────────────────────────────────────────
 
@@ -242,13 +248,13 @@ export const Player = () => {
     };
   }, [setIsPlaying, prevTrack, nextTrack]);
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setProgress(val);
     const player = ytPlayerRef.current;
     if (!player) return;
     try { const dur = player.getDuration?.() ?? 0; if (dur > 0) player.seekTo(val * dur, true); } catch (_) {}
-  };
+  }, [setProgress]);
 
 
   const SILENT_AUDIO_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
@@ -502,6 +508,9 @@ export const Player = () => {
     </div>
   );
 };
+
+/** Memoized Player — prevents re-renders on route/parent changes */
+export const Player = memo(PlayerInner);
 
 // ─── Sub-components for Optimization ───────────────────────────────────────
 

@@ -25,12 +25,12 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="flex h-screen bg-bg-main text-text-main overflow-hidden font-sans">
-      <Sidebar className="will-change-transform contain-layout" />
+      <Sidebar />
       
-      <main className="flex-1 flex flex-col relative overflow-hidden z-10 contain-paint">
+      <main className="flex-1 flex flex-col relative overflow-hidden z-10">
         <TopBar />
         {/* Padding bottom: 150px on mobile (for mobile nav + mini player), 96px on desktop (for bottom player) */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-[150px] md:pb-[96px] px-0 will-change-scroll">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pb-[150px] md:pb-[96px] px-0 overscroll-contain">
           {children}
         </div>
       </main>

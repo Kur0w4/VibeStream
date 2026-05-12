@@ -180,6 +180,27 @@ function filterDuration(video: any) {
   return true;
 }
 
+// ─── Server-Side Search Cache ──────────────────────────────────────────────────
+// Caches YouTube search results to avoid hitting the slow external API
+// on repeated identical queries. TTL: 5 minutes.
+const SERVER_CACHE_TTL = 5 * 60 * 1000;
+interface ServerCacheEntry { data: any[]; expiresAt: number; }
+const serverSearchCache = new Map<string, ServerCacheEntry>();
+
+function getServerCache(key: string): any[] | null {
+  const entry = serverSearchCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { serverSearchCache.delete(key); return null; }
+  return entry.data;
+}
+function setServerCache(key: string, data: any[]): void {
+  if (serverSearchCache.size >= 200) {
+    const firstKey = serverSearchCache.keys().next().value;
+    if (firstKey !== undefined) serverSearchCache.delete(firstKey);
+  }
+  serverSearchCache.set(key, { data, expiresAt: Date.now() + SERVER_CACHE_TTL });
+}
+
 async function youtubeSearch(query: string, limit = 50) {
   // Advanced Query Engineering:
   // We prioritize "Topic" channels and "Official" content by appending specific markers.
@@ -189,8 +210,11 @@ async function youtubeSearch(query: string, limit = 50) {
     ? `${query} official`
     : `${query} topic music`;
 
+  const cached = getServerCache(refinedQuery);
+  if (cached) return cached;
+
   const results = await search(refinedQuery);
-  return results
+  const mapped = results
     .filter((v: any) => {
       const vid = v.id?.videoId;
       const title = (v.title || "").toLowerCase();
@@ -201,6 +225,9 @@ async function youtubeSearch(query: string, limit = 50) {
     .map(mapVideo)
     .filter(Boolean)
     .slice(0, limit);
+
+  setServerCache(refinedQuery, mapped);
+  return mapped;
 }
 
 // ─── Server ────────────────────────────────────────────────────────────────────
@@ -389,6 +416,7 @@ async function startServer() {
     const rows = db
       .prepare("SELECT * FROM liked_songs WHERE user_id = ? ORDER BY created_at DESC")
       .all(req.session.userId);
+    res.set('Cache-Control', 'no-store');
     res.json(rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
   });
 
@@ -576,8 +604,9 @@ async function startServer() {
     const query = (req.query.q as string) || "lofi hip hop";
     const searchQuery = `${query} song OR audio`;
     try {
-      console.log(`[Server] Searching: ${searchQuery}`);
       const tracks = await youtubeSearch(searchQuery);
+      // Allow browser/CDN to cache for 5 minutes
+      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
       res.json(tracks);
     } catch (error) {
       console.error("[Server] Search Error:", error);
@@ -663,8 +692,8 @@ async function startServer() {
   app.get("/api/artist/:name/tracks", async (req: any, res: any) => {
     const name = decodeURIComponent(req.params.name);
     try {
-      console.log(`[Server] Fetching tracks for artist: ${name}`);
       const tracks = await youtubeSearch(`${name} songs`, 30);
+      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
       res.json(tracks);
     } catch {
       res.status(500).json({ error: "Failed to fetch artist tracks" });

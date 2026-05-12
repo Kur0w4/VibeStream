@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// ─── Firebase Auth Singleton ─────────────────────────────────────────────────
+// Imported once at module level to avoid repeated dynamic import resolution
+// on every single API call (which was the previous behavior in apiFetch).
+let _authInstance: any = null;
+async function getAuth() {
+  if (_authInstance) return _authInstance;
+  const { auth } = await import('../lib/firebase');
+  _authInstance = auth;
+  return auth;
+}
+
 export interface Track {
   id: string;
   videoId: string;
@@ -87,17 +98,12 @@ interface PlayerState {
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  // If url is relative like "/api/...", prepending API_BASE_URL
-  const { auth } = await import('../lib/firebase');
+  const auth = await getAuth();
   const headers: Record<string, string> = { ...((opts?.headers as any) || {}) };
   
   if (auth.currentUser) {
     const token = await auth.currentUser.getIdToken();
     headers['Authorization'] = `Bearer ${token}`;
-    const checksum = token.substring(token.length - 8);
-    console.log(`[apiFetch] Including Bearer token (..${checksum}) for ${auth.currentUser.email}`);
-  } else {
-    console.log(`[apiFetch] No currentUser for ${url}`);
   }
 
   const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
@@ -109,7 +115,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
     });
     if (!r.ok) {
       const errorText = await r.text();
-      console.warn(`[apiFetch] ${opts?.method || 'GET'} ${url} failed (${r.status}):`, errorText);
+      console.warn(`[apiFetch] ${opts?.method || 'GET'} ${url} → ${r.status}:`, errorText);
       throw new Error(errorText);
     }
     return r.json();
