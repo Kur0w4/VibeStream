@@ -732,7 +732,6 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // ── Music Search ─────────────────────────────────────────────────────────────
   app.get("/api/search", async (req: any, res: any) => {
     const query = (req.query.q as string) || "popular music";
     try {
@@ -742,6 +741,76 @@ async function startServer() {
     } catch (error) {
       console.error("[Server] Search Error:", error);
       res.status(500).json({ error: "Failed to fetch from YouTube" });
+    }
+  });
+
+  app.get("/api/search/mood", async (req: any, res: any) => {
+    const mood = (req.query.mood as string)?.toLowerCase();
+    const userArtists = (req.query.artists as string)?.split(',') || [];
+    
+    if (!mood || !MOOD_SEEDS[mood]) {
+      return res.status(400).json({ error: "Invalid mood" });
+    }
+
+    try {
+      const seeds = MOOD_SEEDS[mood];
+      const randomSeed = seeds[Math.floor(Math.random() * seeds.length)];
+      // Add a bit of personalization if userArtists are provided
+      const query = userArtists.length > 0 
+        ? `${userArtists[0]} ${randomSeed}` 
+        : randomSeed;
+
+      const tracks = await youtubeSearch(query, 30);
+      res.json(tracks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch mood tracks" });
+    }
+  });
+
+  app.get("/api/search/artist", async (req: any, res: any) => {
+    const query = (req.query.q as string) || "popular artists";
+    try {
+      const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
+      const results = await yt.search(query, { limit: 15, type: 'channel' });
+      
+      const artists = results.map((c: any) => ({
+        name: c.name,
+        thumbnail: c.icon?.url || c.snippet?.thumbnails?.high?.url || ""
+      })).filter((a: any) => a.name);
+
+      res.json(artists);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search artists" });
+    }
+  });
+
+  app.get("/api/artist/:name/tracks", async (req: any, res: any) => {
+    const name = req.params.name;
+    try {
+      const tracks = await youtubeSearch(`${name} official audio`, 25);
+      res.json(tracks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch artist tracks" });
+    }
+  });
+
+  app.get("/api/mix", async (req: any, res: any) => {
+    try {
+      let query = "trending music 2024";
+      if (req.userId) {
+        const historyRes = await db.execute({
+          sql: "SELECT artist FROM listen_history WHERE user_id = ? ORDER BY listened_at DESC LIMIT 5",
+          args: [req.userId]
+        });
+        if (historyRes.rows.length > 0) {
+          const artists = Array.from(new Set(historyRes.rows.map((r: any) => r.artist)));
+          query = `${artists.join(' ')} similar music`;
+        }
+      }
+      const tracks = await youtubeSearch(query, 40);
+      res.json(tracks.sort(() => Math.random() - 0.5));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch mix" });
     }
   });
 

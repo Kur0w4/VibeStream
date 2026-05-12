@@ -1,28 +1,19 @@
-import { Track, API_BASE_URL } from '../store/usePlayerStore';
+import { Track } from '../store/usePlayerStore';
+import { apiClient } from '../lib/apiClient';
 
 // ─── In-Memory Search Cache ──────────────────────────────────────────────────
-// Prevents redundant network requests for identical queries within a 5-minute window.
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
+const CACHE_TTL = 5 * 60 * 1000;
+interface CacheEntry<T> { data: T; expiresAt: number; }
 const searchCache = new Map<string, CacheEntry<Track[]>>();
 
 function getCached(key: string): Track[] | null {
   const entry = searchCache.get(key);
   if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    searchCache.delete(key);
-    return null;
-  }
+  if (Date.now() > entry.expiresAt) { searchCache.delete(key); return null; }
   return entry.data;
 }
 
 function setCache(key: string, data: Track[]): void {
-  // Limit cache size to avoid unbounded memory growth
   if (searchCache.size >= 50) {
     const firstKey = searchCache.keys().next().value;
     if (firstKey !== undefined) searchCache.delete(firstKey);
@@ -39,49 +30,40 @@ export const searchTracks = async (query: string): Promise<Track[]> => {
   if (cached) return cached;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
-    if (!response.ok) throw new Error('Search failed');
-    const data = await response.json();
+    const data = await apiClient(`/api/search?q=${encodeURIComponent(query)}`);
     setCache(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
 
-/** Fetch trending songs (empty query search) */
+/** Fetch trending songs */
 export const getTrendingTracks = async (): Promise<Track[]> => {
   const cacheKey = 'trending';
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search`);
-    if (!response.ok) throw new Error('Failed to fetch trending');
-    const data = await response.json();
+    const data = await apiClient('/api/search');
     setCache(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
 
-/** Fetch personalized trends (multi-genre + user history) */
+/** Fetch personalized trends */
 export const getTrends = async (): Promise<Track[]> => {
-  const cacheKey = 'trends:v2';
+  const cacheKey = 'trends:v3';
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/trends`, { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch trends');
-    const data = await response.json();
+    const data = await apiClient('/api/trends');
     setCache(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
@@ -96,33 +78,23 @@ export const getMoodTracks = async (mood: string, topArtists: string[] = []): Pr
   try {
     const params = new URLSearchParams({ mood });
     if (artistsParam) params.set('artists', artistsParam);
-    const response = await fetch(`${API_BASE_URL}/api/search/mood?${params}`);
-    if (!response.ok) throw new Error('Mood search failed');
-    const data = await response.json();
+    const data = await apiClient(`/api/search/mood?${params}`);
     setCache(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
 
-/** Search for artists (unique channels) */
-export interface Artist {
-  name: string;
-  thumbnail: string;
-}
-
+/** Search for artists */
+export interface Artist { name: string; thumbnail: string; }
 export const searchArtists = async (query: string): Promise<Artist[]> => {
   try {
     const url = query.trim()
-      ? `${API_BASE_URL}/api/search/artist?q=${encodeURIComponent(query)}`
-      : `${API_BASE_URL}/api/search/artist`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Artist search failed');
-    return await response.json();
+      ? `/api/search/artist?q=${encodeURIComponent(query)}`
+      : `/api/search/artist`;
+    return await apiClient(url);
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
@@ -134,13 +106,10 @@ export const getArtistTracks = async (artistName: string): Promise<Track[]> => {
   if (cached) return cached;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/artist/${encodeURIComponent(artistName)}/tracks`);
-    if (!response.ok) throw new Error('Failed to fetch artist tracks');
-    const data = await response.json();
+    const data = await apiClient(`/api/artist/${encodeURIComponent(artistName)}/tracks`);
     setCache(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
@@ -148,37 +117,17 @@ export const getArtistTracks = async (artistName: string): Promise<Track[]> => {
 /** Get Personalized "Your Mix" */
 export const getYourMix = async (): Promise<Track[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/mix`, { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch mix');
-    const data = await response.json();
+    const data = await apiClient('/api/mix');
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('API Error:', error);
     return [];
   }
 };
 
 /** Import Playlist from YouTube */
 export const importYoutubePlaylist = async (url: string): Promise<any> => {
-  const { auth } = await import('../lib/firebase');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  
-  if (auth.currentUser) {
-    const token = await auth.currentUser.getIdToken();
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/api/playlists/import`, {
+  return await apiClient('/api/playlists/import', {
     method: 'POST',
-    credentials: 'include',
-    headers,
     body: JSON.stringify({ url })
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Import failed');
-  }
-
-  return await response.json();
 };

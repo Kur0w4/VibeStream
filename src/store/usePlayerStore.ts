@@ -1,17 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { offlineService } from '../lib/offlineService';
-
-// ─── Firebase Auth Singleton ─────────────────────────────────────────────────
-// Imported once at module level to avoid repeated dynamic import resolution
-// on every single API call (which was the previous behavior in apiFetch).
-let _authInstance: any = null;
-async function getAuth() {
-  if (_authInstance) return _authInstance;
-  const { auth } = await import('../lib/firebase');
-  _authInstance = auth;
-  return auth;
-}
+import { apiClient } from '../lib/apiClient';
 
 export interface Track {
   id: string;
@@ -101,50 +91,10 @@ interface PlayerState {
   toggleDownload: (track: Track) => Promise<void>;
 }
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
 // ─── API configuration ────────────────────────────────────────────────────────
 // IMPORTANT: For mobile apps, you MUST set a full URL (e.g., https://your-server.com)
 // Relative paths (/api/...) will only work if the web app and server share the same origin.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-async function apiFetch(url: string, opts?: RequestInit) {
-  const headers: Record<string, string> = { ...((opts?.headers as any) || {}) };
-  
-  // 1. Try to get local JWT first (native-friendly)
-  const localToken = localStorage.getItem('vibestream_token');
-  if (localToken) {
-    headers['Authorization'] = `Bearer ${localToken}`;
-  } else {
-    // 2. Fallback to Firebase token if logged in but no local token yet
-    const auth = await getAuth();
-    if (auth.currentUser) {
-      const token = await auth.currentUser.getIdToken();
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
-
-  const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
-  
-  if (import.meta.env.DEV) {
-    console.log(`[apiFetch] Request: ${opts?.method || 'GET'} ${finalUrl}`);
-  }
-
-  try {
-    const r = await fetch(finalUrl, { 
-      ...opts,
-      headers
-    });
-    if (!r.ok) {
-      const errorText = await r.text();
-      console.warn(`[apiFetch] ${opts?.method || 'GET'} ${url} → ${r.status}:`, errorText);
-      throw new Error(errorText);
-    }
-    return r.json();
-  } catch (err) {
-    console.error(`[apiFetch] Request failed: ${url}`, err);
-    throw err;
-  }
-}
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -303,7 +253,7 @@ export const usePlayerStore = create<PlayerState>()(
           const fToken = await fUser.getIdToken();
           
           // Exchange Firebase token for our JWT
-          const { user, token } = await apiFetch('/api/auth/token', {
+          const { user, token } = await apiClient('/api/auth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: fToken })
@@ -319,7 +269,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       clearHistory: async () => {
         try {
-          await apiFetch('/api/history', { method: 'DELETE' });
+          await apiClient('/api/history', { method: 'DELETE' });
           set({ listeningHistory: [] });
         } catch (err) {
           console.error('[Auth] Clear History failed:', err);
@@ -327,7 +277,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       updateUsername: async (username: string) => {
         try {
-          const res = await apiFetch('/api/auth/me', {
+          const res = await apiClient('/api/auth/me', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username })
@@ -358,7 +308,7 @@ export const usePlayerStore = create<PlayerState>()(
           if (fUser) {
             try {
               const fToken = await fUser.getIdToken();
-              const { user, token } = await apiFetch('/api/auth/token', {
+              const { user, token } = await apiClient('/api/auth/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: fToken })
@@ -390,10 +340,10 @@ export const usePlayerStore = create<PlayerState>()(
         if (!user) return;
         try {
           const [liked, playlists, history, artists] = await Promise.all([
-            apiFetch('/api/liked'),
-            apiFetch('/api/playlists'),
-            apiFetch('/api/history'),
-            apiFetch('/api/artists/followed'),
+            apiClient('/api/liked'),
+            apiClient('/api/playlists'),
+            apiClient('/api/history'),
+            apiClient('/api/artists/followed'),
           ]);
           set({
             likedSongs: Array.isArray(liked) ? liked : [],
@@ -410,7 +360,7 @@ export const usePlayerStore = create<PlayerState>()(
       createPlaylist: async (name) => {
         const { user, playlists } = get();
         if (user) {
-          const pl = await apiFetch('/api/playlists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          const pl = await apiClient('/api/playlists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
           set({ playlists: [pl, ...playlists] });
         } else {
           const pl = { id: Math.random().toString(36).substr(2, 9), name, tracks: [] };
@@ -424,13 +374,13 @@ export const usePlayerStore = create<PlayerState>()(
       },
       deletePlaylist: async (id) => {
         const { user } = get();
-        if (user) await apiFetch(`/api/playlists/${id}`, { method: 'DELETE' });
+        if (user) await apiClient(`/api/playlists/${id}`, { method: 'DELETE' });
         set((s) => ({ playlists: s.playlists.filter((p) => p.id !== id) }));
       },
       addTrackToPlaylist: async (playlistId, track) => {
         const { user } = get();
         if (user) {
-          await apiFetch(`/api/playlists/${playlistId}/tracks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(track) });
+          await apiClient(`/api/playlists/${playlistId}/tracks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(track) });
         }
         set((s) => ({
           playlists: s.playlists.map((pl) =>
@@ -442,7 +392,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
       removeTrackFromPlaylist: async (playlistId, videoId) => {
         const { user } = get();
-        if (user) await apiFetch(`/api/playlists/${playlistId}/tracks/${videoId}`, { method: 'DELETE' });
+        if (user) await apiClient(`/api/playlists/${playlistId}/tracks/${videoId}`, { method: 'DELETE' });
         set((s) => ({
           playlists: s.playlists.map((pl) =>
             pl.id === playlistId ? { ...pl, tracks: pl.tracks.filter((t) => t.id !== videoId) } : pl
@@ -455,8 +405,8 @@ export const usePlayerStore = create<PlayerState>()(
         const { user, likedSongs } = get();
         const isLiked = likedSongs.some((t) => t.id === track.id);
         if (user) {
-          if (isLiked) await apiFetch(`/api/liked/${track.videoId}`, { method: 'DELETE' });
-          else await apiFetch('/api/liked', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(track) });
+          if (isLiked) await apiClient(`/api/liked/${track.videoId}`, { method: 'DELETE' });
+          else await apiClient('/api/liked', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(track) });
         }
         set((s) => ({
           likedSongs: isLiked
@@ -469,7 +419,7 @@ export const usePlayerStore = create<PlayerState>()(
       followArtist: async (artist) => {
         const { user } = get();
         if (user) {
-          await apiFetch('/api/artists/follow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(artist) });
+          await apiClient('/api/artists/follow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(artist) });
         }
         set((s) => {
           if (s.followedArtists.some((a) => a.name === artist.name)) return s;
@@ -478,14 +428,14 @@ export const usePlayerStore = create<PlayerState>()(
       },
       unfollowArtist: async (name) => {
         const { user } = get();
-        if (user) await apiFetch(`/api/artists/follow/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (user) await apiClient(`/api/artists/follow/${encodeURIComponent(name)}`, { method: 'DELETE' });
         set((s) => ({ followedArtists: s.followedArtists.filter((a) => a.name !== name) }));
       },
 
       // ── History ──────────────────────────────────────────────────────────────
       addToHistory: async (track) => {
         try {
-          await apiFetch('/api/history', { method: 'POST', body: JSON.stringify(track) });
+          await apiClient('/api/history', { method: 'POST', body: JSON.stringify(track) });
           set((s) => ({ listeningHistory: [track, ...s.listeningHistory.filter(t => t.videoId !== track.videoId)].slice(0, 50) }));
         } catch {}
       },
