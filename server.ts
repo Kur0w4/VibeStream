@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -9,15 +10,22 @@ import jwt from "jsonwebtoken";
 import cors from "cors";
 import YouTube from "youtube-sr";
 import ytdl from "@distube/ytdl-core";
-import "dotenv/config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ─── Database Setup (Turso) ──────────────────────────────────────────────────
+const dbUrl = process.env.TURSO_DATABASE_URL;
+const dbToken = process.env.TURSO_AUTH_TOKEN;
+
+if (!dbUrl) {
+  console.error("CRITICAL ERROR: TURSO_DATABASE_URL is not defined in environment variables.");
+  process.exit(1);
+}
+
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  url: dbUrl,
+  authToken: dbToken,
 });
 
 async function initDB() {
