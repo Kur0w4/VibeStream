@@ -3,107 +3,111 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { search } from "youtube-search-without-api-key";
-import Database from "better-sqlite3";
+import { createClient } from "@libsql/client";
 import bcrypt from "bcryptjs";
-import session from "express-session";
+import jwt from "jsonwebtoken";
 import cors from "cors";
-import SQLiteStoreFactory from "connect-sqlite3";
 import YouTube from "youtube-sr";
-
-const SQLiteStore = SQLiteStoreFactory(session);
+import ytdl from "@distube/ytdl-core";
+import "dotenv/config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─── Database Setup ────────────────────────────────────────────────────────────
-const DB_PATH = path.join(__dirname, "vibestream.db");
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
+// ─── Database Setup (Turso) ──────────────────────────────────────────────────
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
-    email TEXT UNIQUE,
-    password_hash TEXT,
-    firebase_uid TEXT UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+async function initDB() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      firebase_uid TEXT UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS liked_songs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    video_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    thumbnail TEXT NOT NULL,
-    duration TEXT NOT NULL,
-    url TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, video_id),
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS liked_songs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      video_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL,
+      thumbnail TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      url TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, video_id),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS playlists (
-    id TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS playlists (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS playlist_tracks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    playlist_id TEXT NOT NULL,
-    video_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    thumbnail TEXT NOT NULL,
-    duration TEXT NOT NULL,
-    url TEXT NOT NULL,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(playlist_id, video_id),
-    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS playlist_tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      playlist_id TEXT NOT NULL,
+      video_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL,
+      thumbnail TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      url TEXT NOT NULL,
+      added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(playlist_id, video_id),
+      FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS listen_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    video_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    artist TEXT NOT NULL,
-    thumbnail TEXT NOT NULL,
-    duration TEXT NOT NULL,
-    url TEXT NOT NULL,
-    listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS listen_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      video_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL,
+      thumbnail TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      url TEXT NOT NULL,
+      listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
 
-  CREATE TABLE IF NOT EXISTS followed_artists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    thumbnail TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, name),
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS followed_artists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      thumbnail TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, name),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
 
-// ─── Manual Migrations (Ensure existing DBs have the new columns) ───────────────
-try {
-  db.exec("ALTER TABLE users ADD COLUMN email TEXT UNIQUE;");
-} catch (e) {}
-try {
-  db.exec("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;");
-} catch (e) {}
-try {
-  db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
-} catch (e) {}
-try {
-  // Relaxing the NOT NULL for password_hash if it already existed but might be empty for Google users
-  // Note: SQLite doesn't support ALTER TABLE DROP NOT NULL cleanly, so we'll just handle it in app logic or re-create if needed.
-} catch (e) {}
+  // Manual Migrations
+  try { await db.execute("ALTER TABLE users ADD COLUMN email TEXT UNIQUE;"); } catch {}
+  try { await db.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;"); } catch {}
+  try { await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT;"); } catch {}
+}
+
+initDB();
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function cleanTitle(title: string) {
@@ -279,54 +283,19 @@ async function startServer() {
 
   // Security & Connectivity
   app.set("trust proxy", 1); 
-  app.use(cors({
-    origin: true,
-    credentials: true
-  }));
+  app.use(cors({ origin: true }));
   app.use(express.json());
-  app.use(
-    session({
-      store: new SQLiteStore({ db: "sessions.db", dir: "./" }) as any,
-      secret: "vibestream-secret-2024",
-      resave: false,
-      saveUninitialized: false,
-      proxy: true, // Required for secure cookies on Render/behind proxy
-      cookie: { 
-        secure: true, // Always true for cross-domain SameSite=None
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        sameSite: "none" // Required for cross-domain cookies (web.app -> onrender.com)
-      },
-    })
-  );
 
-  // Health Check
-  app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
-
-  // Debug Session
-  app.get("/api/debug/session", (req: any, res: any) => {
-    let userCount = 0;
-    try {
-      const row = db.prepare("SELECT COUNT(*) as count FROM users").get() as any;
-      userCount = row.count;
-    } catch {}
-
-    res.json({
-      sessionID: req.sessionID,
-      userId: req.session.userId,
-      username: req.session.username,
-      email: req.session.email,
-      lastAuthError: req.session.lastAuthError || null,
-      dbUserCount: userCount,
-      headers: {
-        cookie: !!req.headers.cookie,
-        authorization: !!req.headers.authorization
-      }
-    });
-  });
+  // ── JWT Helpers ─────────────────────────────────────────────────────────────
+  const JWT_SECRET = process.env.JWT_SECRET || "vibestream-fallback-secret";
+  
+  function signToken(payload: any) {
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+  }
 
   // ── Auth Helper ─────────────────────────────────────────────────────────────
-  async function normalizeFirebaseUser(req: any, token: string) {
-    if (!token || !token.includes('.')) return false;
+  async function normalizeFirebaseUser(token: string) {
+    if (!token || !token.includes('.')) return null;
     try {
       const parts = token.split('.');
       if (parts.length === 3) {
@@ -339,65 +308,99 @@ async function startServer() {
           const email = payload.email || '';
           const name = payload.name || email.split('@')[0] || 'User';
           
-          // Optimization: If session already exists and matches this user, skip re-saving
-          if (req.session.userId && (req.session.firebaseUid === fUid || req.session.email === email)) {
-            return true;
-          }
-
-          let user = db.prepare("SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')").get(fUid, email) as any;
+          let userRes = await db.execute({
+            sql: "SELECT * FROM users WHERE firebase_uid = ? OR (email = ? AND email != '')",
+            args: [fUid, email]
+          });
+          
+          let user: any = userRes.rows[0];
+          
           if (!user) {
-            const info = db.prepare("INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)").run(name, email, fUid);
-            user = { id: info.lastInsertRowid, username: name, email };
+            const info = await db.execute({
+              sql: "INSERT INTO users (username, email, firebase_uid) VALUES (?, ?, ?)",
+              args: [name, email, fUid]
+            });
+            user = { id: Number(info.lastInsertRowid), username: name, email };
           } else if (!user.firebase_uid) {
-            db.prepare("UPDATE users SET firebase_uid = ? WHERE id = ?").run(fUid, user.id);
+            await db.execute({
+              sql: "UPDATE users SET firebase_uid = ? WHERE id = ?",
+              args: [fUid, user.id]
+            });
           }
 
-          req.session.userId = user.id;
-          req.session.username = user.username;
-          req.session.email = user.email;
-          req.session.firebaseUid = fUid; // Store for optimization check
-          req.session.lastAuthError = null;
-          await new Promise((resolve) => req.session.save(resolve));
-          return true;
-        } else {
-          req.session.lastAuthError = "Invalid payload: missing sub/user_id";
+          return { id: Number(user.id), username: user.username as string };
         }
       }
-    } catch (e: any) {
-      req.session.lastAuthError = `Decoding error: ${e.message}`;
+    } catch (e) {
+      console.error("[Auth] Firebase decoding error:", e);
     }
-    return false;
+    return null;
   }
 
   // ── Auth Middleware ──────────────────────────────────────────────────────────
-  app.use(async (req: any, res: any, next: any) => {
+  app.use(async (req: any, _res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split("Bearer ")[1];
-      await normalizeFirebaseUser(req, token);
+      
+      // Try regular JWT first
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        req.userId = decoded.id;
+        req.username = decoded.username;
+        return next();
+      } catch (e) {
+        // If regular JWT fails, try Firebase token
+        const fbUser = await normalizeFirebaseUser(token);
+        if (fbUser) {
+          req.userId = fbUser.id;
+          req.username = fbUser.username;
+        }
+      }
     }
     next();
   });
 
-  // ── Auth Routes ──────────────────────────────────────────────────────────────
-  app.post("/api/auth/token", async (req: any, res: any) => {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ error: "Token required" });
-    const success = await normalizeFirebaseUser(req, token);
-    if (success) {
-      res.json({ id: req.session.userId, username: req.session.username });
-    } else {
-      res.status(401).json({ error: req.session.lastAuthError || "Auth failed" });
-    }
+  // Health Check
+  app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
+
+  // Debug Auth (Replacement for Session Debug)
+  app.get("/api/debug/auth", async (req: any, res: any) => {
+    let userCount = 0;
+    try {
+      const res = await db.execute("SELECT COUNT(*) as count FROM users");
+      userCount = Number(res.rows[0].count);
+    } catch {}
+
+    res.json({
+      userId: req.userId || null,
+      username: req.username || null,
+      dbUserCount: userCount,
+      headers: {
+        authorization: !!req.headers.authorization
+      }
+    });
   });
 
   // Protected Routes Middleware
   const isAuthenticated = (req: any, res: any, next: any) => {
-    if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
     next();
   }
 
   // ── Auth Endpoints ───────────────────────────────────────────────────────────
+  app.post("/api/auth/token", async (req: any, res: any) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token required" });
+    const user = await normalizeFirebaseUser(token);
+    if (user) {
+      const jwt = signToken(user);
+      res.json({ token: jwt, user });
+    } else {
+      res.status(401).json({ error: "Auth failed" });
+    }
+  });
+
   app.post("/api/auth/register", async (req: any, res: any) => {
     const { username, password } = req.body;
     if (!username?.trim() || !password?.trim())
@@ -408,11 +411,13 @@ async function startServer() {
       return res.status(400).json({ error: "Password must be at least 6 characters" });
     try {
       const hash = await bcrypt.hash(password, 10);
-      const stmt = db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
-      const result = stmt.run(username.trim(), hash);
-      req.session.userId = result.lastInsertRowid;
-      req.session.username = username.trim();
-      res.json({ id: result.lastInsertRowid, username: username.trim() });
+      const result = await db.execute({
+        sql: "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+        args: [username.trim(), hash]
+      });
+      const user = { id: Number(result.lastInsertRowid), username: username.trim() };
+      const token = signToken(user);
+      res.json({ token, user });
     } catch (e: any) {
       if (e.message?.includes("UNIQUE")) return res.status(409).json({ error: "Username already taken" });
       res.status(500).json({ error: "Server error" });
@@ -422,31 +427,41 @@ async function startServer() {
   app.post("/api/auth/login", async (req: any, res: any) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Missing credentials" });
-    const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username) as any;
+    
+    const userRes = await db.execute({
+      sql: "SELECT * FROM users WHERE username = ?",
+      args: [username]
+    });
+    
+    const user = userRes.rows[0];
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
-    const valid = await bcrypt.compare(password, user.password_hash);
+    
+    const valid = await bcrypt.compare(password, user.password_hash as string);
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    res.json({ id: user.id, username: user.username });
+    
+    const userData = { id: Number(user.id), username: user.username as string };
+    const token = signToken(userData);
+    res.json({ token, user: userData });
   });
 
-  app.post("/api/auth/logout", (req: any, res: any) => {
-    req.session.destroy(() => res.json({ ok: true }));
+  app.post("/api/auth/logout", (_req: any, res: any) => {
+    res.json({ ok: true }); // Stateless JWT logout is handled in frontend
   });
 
   app.get("/api/auth/me", (req: any, res: any) => {
-    if (!req.session?.userId) return res.json(null);
-    res.json({ id: req.session.userId, username: req.session.username });
+    if (!req.userId) return res.json(null);
+    res.json({ id: req.userId, username: req.username });
   });
 
   app.patch("/api/auth/me", isAuthenticated, async (req: any, res: any) => {
     const { username } = req.body;
     if (!username?.trim() || username.length < 3) return res.status(400).json({ error: "Invalid username" });
     try {
-      db.prepare("UPDATE users SET username = ? WHERE id = ?").run(username.trim(), req.session.userId);
-      req.session.username = username.trim();
-      res.json({ id: req.session.userId, username: username.trim() });
+      await db.execute({
+        sql: "UPDATE users SET username = ? WHERE id = ?",
+        args: [username.trim(), req.userId]
+      });
+      res.json({ id: req.userId, username: username.trim() });
     } catch (e: any) {
       if (e.message?.includes("UNIQUE")) return res.status(409).json({ error: "Username already taken" });
       res.status(500).json({ error: "Server error" });
@@ -454,54 +469,81 @@ async function startServer() {
   });
 
   // ── Liked Songs ──────────────────────────────────────────────────────────────
-  app.get("/api/liked", isAuthenticated, (req: any, res: any) => {
-    const rows = db
-      .prepare("SELECT * FROM liked_songs WHERE user_id = ? ORDER BY created_at DESC")
-      .all(req.session.userId);
+  app.get("/api/liked", isAuthenticated, async (req: any, res: any) => {
+    const result = await db.execute({
+      sql: "SELECT * FROM liked_songs WHERE user_id = ? ORDER BY created_at DESC",
+      args: [req.userId]
+    });
     res.set('Cache-Control', 'no-store');
-    res.json(rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
+    res.json(result.rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })));
   });
 
-  app.post("/api/liked", isAuthenticated, (req: any, res: any) => {
+  app.post("/api/liked", isAuthenticated, async (req: any, res: any) => {
     const t = req.body;
     try {
-      db.prepare("INSERT OR IGNORE INTO liked_songs (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.session.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
+      await db.execute({
+        sql: "INSERT OR IGNORE INTO liked_songs (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
+        args: [req.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url]
+      });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/liked/:videoId", isAuthenticated, (req: any, res: any) => {
-    db.prepare("DELETE FROM liked_songs WHERE user_id = ? AND video_id = ?").run(req.session.userId, req.params.videoId);
+  app.delete("/api/liked/:videoId", isAuthenticated, async (req: any, res: any) => {
+    await db.execute({
+      sql: "DELETE FROM liked_songs WHERE user_id = ? AND video_id = ?",
+      args: [req.userId, req.params.videoId]
+    });
     res.json({ ok: true });
   });
 
   // ── Playlists ────────────────────────────────────────────────────────────────
-  app.get("/api/playlists", isAuthenticated, (req: any, res: any) => {
-    const pls = db.prepare("SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC").all(req.session.userId) as any[];
-    const result = pls.map((pl: any) => {
-      const tracks = db.prepare("SELECT * FROM playlist_tracks WHERE playlist_id = ? ORDER BY added_at ASC").all(pl.id) as any[];
-      return { id: pl.id, name: pl.name, tracks: tracks.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })) };
+  app.get("/api/playlists", isAuthenticated, async (req: any, res: any) => {
+    const plsRes = await db.execute({
+      sql: "SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC",
+      args: [req.userId]
     });
+    
+    const result = await Promise.all(plsRes.rows.map(async (pl: any) => {
+      const tracksRes = await db.execute({
+        sql: "SELECT * FROM playlist_tracks WHERE playlist_id = ? ORDER BY added_at ASC",
+        args: [pl.id]
+      });
+      return { 
+        id: pl.id, 
+        name: pl.name, 
+        tracks: tracksRes.rows.map((r: any) => ({ id: r.video_id, videoId: r.video_id, title: r.title, artist: r.artist, thumbnail: r.thumbnail, duration: r.duration, url: r.url })) 
+      };
+    }));
     res.json(result);
   });
 
-  app.post("/api/playlists", isAuthenticated, (req: any, res: any) => {
+  app.post("/api/playlists", isAuthenticated, async (req: any, res: any) => {
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Name required" });
     const id = Math.random().toString(36).substr(2, 9);
-    db.prepare("INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)").run(id, req.session.userId, name.trim());
+    await db.execute({
+      sql: "INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)",
+      args: [id, req.userId, name.trim()]
+    });
     res.json({ id, name: name.trim(), tracks: [] });
   });
 
-  app.delete("/api/playlists/:id", isAuthenticated, (req: any, res: any) => {
-    db.prepare("DELETE FROM playlists WHERE id = ? AND user_id = ?").run(req.params.id, req.session.userId);
+  app.delete("/api/playlists/:id", isAuthenticated, async (req: any, res: any) => {
+    await db.execute({
+      sql: "DELETE FROM playlists WHERE id = ? AND user_id = ?",
+      args: [req.params.id, req.userId]
+    });
     res.json({ ok: true });
   });
 
-  app.post("/api/playlists/:id/tracks", isAuthenticated, (req: any, res: any) => {
+  app.post("/api/playlists/:id/tracks", isAuthenticated, async (req: any, res: any) => {
     const t = req.body;
     try {
-      db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.params.id, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
+      await db.execute({
+        sql: "INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
+        args: [req.params.id, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url]
+      });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
   });
@@ -513,7 +555,6 @@ async function startServer() {
     try {
       console.log(`[Server] Importing playlist: ${url}`);
       
-      // Attempt to normalize URL or extract ID
       let playlistId = url;
       if (url.includes("list=")) {
         playlistId = url.split("list=")[1].split("&")[0];
@@ -523,25 +564,26 @@ async function startServer() {
       const playlist = await yt.getPlaylist(playlistId).catch(() => null);
       
       if (!playlist) {
-        return res.status(404).json({ error: "Playlist not found. Make sure it is PUBLIC and not a 'Mix' playlist." });
+        return res.status(404).json({ error: "Playlist not found. Make sure it is PUBLIC." });
       }
 
-      await playlist.fetch(100).catch(() => {}); // loads up to 100 videos
+      await playlist.fetch(100).catch(() => {});
       
       if (!playlist.videos || playlist.videos.length === 0) {
-        return res.status(400).json({ error: "Playlist is empty or could not be read." });
+        return res.status(400).json({ error: "Playlist is empty." });
       }
 
       const internalId = Math.random().toString(36).substr(2, 9);
       const playlistName = playlist.title || "Imported Playlist";
 
-      // Create playlist in DB
-      db.prepare("INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)").run(internalId, req.session.userId, playlistName);
+      await db.execute({
+        sql: "INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)",
+        args: [internalId, req.userId, playlistName]
+      });
 
-      const tracks = playlist.videos.map(v => {
+      const tracks = playlist.videos.map((v: any) => {
         const videoId = v.id;
         if (!videoId) return null;
-        
         let artist = v.channel?.name || "YouTube Artist";
         if (artist.toLowerCase().endsWith(" - topic")) artist = artist.slice(0, -8);
 
@@ -554,50 +596,55 @@ async function startServer() {
           duration: v.durationFormatted || "4:00",
           url: `https://www.youtube.com/watch?v=${videoId}`
         };
-      }).filter((t: any): t is any => t !== null);
+      }).filter(Boolean);
 
-      const insertStmt = db.prepare("INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)");
-      const insertMany = db.transaction((tracksToInsert: any[]) => {
-        for (const t of tracksToInsert) {
-          insertStmt.run(t.playlist_id, t.video_id, t.title, t.artist, t.thumbnail, t.duration, t.url);
-        }
-      });
-
-      insertMany(tracks);
+      // Batch insert tracks
+      for (const t of tracks) {
+        await db.execute({
+          sql: "INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
+          args: [t.playlist_id, t.video_id, t.title, t.artist, t.thumbnail, t.duration, t.url]
+        });
+      }
 
       res.json({
         id: internalId,
         name: playlistName,
         tracksCount: tracks.length,
-        tracks: tracks.map(t => ({ id: t.video_id, videoId: t.video_id, title: t.title, artist: t.artist, thumbnail: t.thumbnail, duration: t.duration, url: t.url }))
+        tracks: tracks.map((t: any) => ({ id: t.video_id, videoId: t.video_id, title: t.title, artist: t.artist, thumbnail: t.thumbnail, duration: t.duration, url: t.url }))
       });
     } catch (error: any) {
       console.error("[Server] Import Error:", error);
-      res.status(500).json({ error: "Failed to import playlist. Please try again with a different public playlist." });
+      res.status(500).json({ error: "Failed to import playlist." });
     }
   });
 
-  app.delete("/api/playlists/:id/tracks/:videoId", isAuthenticated, (req: any, res: any) => {
-    db.prepare("DELETE FROM playlist_tracks WHERE playlist_id = ? AND video_id = ?").run(req.params.id, req.params.videoId);
+  app.delete("/api/playlists/:id/tracks/:videoId", isAuthenticated, async (req: any, res: any) => {
+    await db.execute({
+      sql: "DELETE FROM playlist_tracks WHERE playlist_id = ? AND video_id = ?",
+      args: [req.params.id, req.params.videoId]
+    });
     res.json({ ok: true });
   });
 
   // ── Listen History ───────────────────────────────────────────────────────────
-  app.get("/api/history", isAuthenticated, (req: any, res: any) => {
+  app.get("/api/history", isAuthenticated, async (req: any, res: any) => {
     const limit = parseInt(req.query.limit as string) || 100;
     try {
-      const rows = db.prepare(`
-        SELECT h.* FROM listen_history h
-        INNER JOIN (
-          SELECT MAX(id) as max_id 
-          FROM listen_history 
-          WHERE user_id = ? 
-          GROUP BY video_id
-        ) m ON h.id = m.max_id
-        ORDER BY h.listened_at DESC 
-        LIMIT ?
-      `).all(req.session.userId, limit) as any[];
-      res.json(rows.map((r: any) => ({ 
+      const result = await db.execute({
+        sql: `
+          SELECT h.* FROM listen_history h
+          INNER JOIN (
+            SELECT MAX(id) as max_id 
+            FROM listen_history 
+            WHERE user_id = ? 
+            GROUP BY video_id
+          ) m ON h.id = m.max_id
+          ORDER BY h.listened_at DESC 
+          LIMIT ?
+        `,
+        args: [req.userId, limit]
+      });
+      res.json(result.rows.map((r: any) => ({ 
         id: r.video_id, 
         videoId: r.video_id, 
         title: r.title, 
@@ -612,37 +659,52 @@ async function startServer() {
     }
   });
 
-  app.post("/api/history", isAuthenticated, (req: any, res: any) => {
+  app.post("/api/history", isAuthenticated, async (req: any, res: any) => {
     const t = req.body;
     try {
-      db.prepare("INSERT INTO listen_history (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)").run(req.session.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url);
+      await db.execute({
+        sql: "INSERT INTO listen_history (user_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
+        args: [req.userId, t.videoId, t.title, t.artist, t.thumbnail, t.duration, t.url]
+      });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/history", isAuthenticated, (req: any, res: any) => {
+  app.delete("/api/history", isAuthenticated, async (req: any, res: any) => {
     try {
-      db.prepare("DELETE FROM listen_history WHERE user_id = ?").run(req.session.userId);
+      await db.execute({
+        sql: "DELETE FROM listen_history WHERE user_id = ?",
+        args: [req.userId]
+      });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
   // ── Followed Artists ─────────────────────────────────────────────────────────
-  app.get("/api/artists/followed", isAuthenticated, (req: any, res: any) => {
-    const rows = db.prepare("SELECT * FROM followed_artists WHERE user_id = ? ORDER BY created_at DESC").all(req.session.userId);
-    res.json(rows);
+  app.get("/api/artists/followed", isAuthenticated, async (req: any, res: any) => {
+    const result = await db.execute({
+      sql: "SELECT * FROM followed_artists WHERE user_id = ? ORDER BY created_at DESC",
+      args: [req.userId]
+    });
+    res.json(result.rows);
   });
 
-  app.post("/api/artists/follow", isAuthenticated, (req: any, res: any) => {
+  app.post("/api/artists/follow", isAuthenticated, async (req: any, res: any) => {
     const { name, thumbnail } = req.body;
     try {
-      db.prepare("INSERT OR IGNORE INTO followed_artists (user_id, name, thumbnail) VALUES (?,?,?)").run(req.session.userId, name, thumbnail || "");
+      await db.execute({
+        sql: "INSERT OR IGNORE INTO followed_artists (user_id, name, thumbnail) VALUES (?,?,?)",
+        args: [req.userId, name, thumbnail || ""]
+      });
       res.json({ ok: true });
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  app.delete("/api/artists/follow/:name", isAuthenticated, (req: any, res: any) => {
-    db.prepare("DELETE FROM followed_artists WHERE user_id = ? AND name = ?").run(req.session.userId, decodeURIComponent(req.params.name));
+  app.delete("/api/artists/follow/:name", isAuthenticated, async (req: any, res: any) => {
+    await db.execute({
+      sql: "DELETE FROM followed_artists WHERE user_id = ? AND name = ?",
+      args: [req.userId, decodeURIComponent(req.params.name)]
+    });
     res.json({ ok: true });
   });
 
@@ -671,14 +733,15 @@ async function startServer() {
       ];
       let personalized: any[] = [];
 
-      if (req.session?.userId) {
-        const topArtists = db.prepare(
-          "SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5"
-        ).all(req.session.userId) as any[];
+      if (req.userId) {
+        const topArtistsRes = await db.execute({
+          sql: "SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5",
+          args: [req.userId]
+        });
 
-        if (topArtists.length > 0) {
+        if (topArtistsRes.rows.length > 0) {
           const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
-          const artistQueries = topArtists.slice(0, 3).map((a: any) => `${a.artist} popular official`);
+          const artistQueries = topArtistsRes.rows.slice(0, 3).map((a: any) => `${a.artist} popular official`);
           const results = await Promise.allSettled(artistQueries.map(q => yt.search(q, { limit: 10, type: 'video' })));
           results.forEach(r => { 
             if (r.status === 'fulfilled') {
@@ -688,17 +751,13 @@ async function startServer() {
           });
         }
       }
-
-      // Fetch global trending in parallel
+      
       const globalResults = await Promise.allSettled(globalQueries.map(q => youtubeSearch(q, 15)));
       const global: any[] = [];
       globalResults.forEach(r => { if (r.status === 'fulfilled') global.push(...r.value); });
 
-      // Deduplicate and merge
       const seen = new Set<string>();
       const merged: any[] = [];
-      
-      // Shuffle slightly to avoid same order every time
       const combined = [...personalized, ...global].sort(() => Math.random() - 0.5);
 
       for (const t of combined) {
@@ -718,7 +777,6 @@ async function startServer() {
   });
 
   // ── Mood-Based Personalized Search ───────────────────────────────────────────
-  // ?mood=relax&artists=Artist1,Artist2
   app.get("/api/search/mood", async (req: any, res: any) => {
     const mood = ((req.query.mood as string) || '').toLowerCase().trim();
     const artistsParam = (req.query.artists as string) || '';
@@ -727,15 +785,12 @@ async function startServer() {
 
     try {
       const queries: string[] = [];
-      // If we have user artists, mix them with seeds for better personalization
       if (userArtists.length > 0) {
         userArtists.forEach(artist => {
           const randomSeed = seeds[Math.floor(Math.random() * seeds.length)];
           queries.push(`${artist} ${randomSeed}`);
         });
       }
-      
-      // Add general seeds to ensure diversity
       seeds.forEach(s => queries.push(`${s} official`));
 
       const results = await Promise.allSettled(queries.slice(0, 6).map(q => youtubeSearch(q, 15)));
@@ -750,9 +805,7 @@ async function startServer() {
         });
       });
 
-      // Shuffle tracks for a fresh mix every time
       tracks.sort(() => Math.random() - 0.5);
-
       res.set('Cache-Control', 'public, max-age=300');
       res.json(tracks.slice(0, 40));
     } catch (error) {
@@ -761,27 +814,17 @@ async function startServer() {
     }
   });
 
-  // ── Artist Search (precise: exact name first, then topic channels) ────────────────
+  // ── Artist Search ────────────────────────────────────────────────────────────
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
     try {
       const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
-      // Use YouTube.search to find videos, then extract unique channels
-      // This is more reliable than channel search which currently crashes
       const [topicResults, officialResults] = await Promise.all([
         yt.search(q ? `${q} - Topic` : "popular music artists", { limit: 15, type: 'video' }),
         yt.search(q ? `${q} official music` : "trending singers", { limit: 15, type: 'video' }),
       ]);
       const combinedResults = [...topicResults, ...officialResults];
-      if (combinedResults.length === 0) {
-        console.log(`[Artist Search] YouTube-sr returned 0 results. Trying fallback...`);
-        const [fb1, fb2] = await Promise.all([
-          search(q ? `${q} - Topic` : "popular music artists").catch(() => []),
-          search(q ? `${q} official music` : "trending singers").catch(() => []),
-        ]);
-        combinedResults.push(...(fb1 as any[]), ...(fb2 as any[]));
-      }
-
+      
       const seen = new Set<string>();
       const artists: { name: string; thumbnail: string; score: number }[] = [];
       const ql = q.toLowerCase();
@@ -789,12 +832,10 @@ async function startServer() {
       for (const v of combinedResults) {
         let channelName = v.channel?.name || "";
         let channelThumb = v.channel?.icon?.url || v.thumbnail?.url || "";
-
         if (!channelName) continue;
 
         if (channelName.toLowerCase().endsWith(" - topic")) channelName = channelName.slice(0, -8);
         if (channelName.toLowerCase().endsWith("vevo")) channelName = channelName.slice(0, -4).trim();
-
         if (seen.has(channelName.toLowerCase())) continue;
         seen.add(channelName.toLowerCase());
 
@@ -806,17 +847,15 @@ async function startServer() {
           else if (cl.includes(ql)) score = 20;
           else score = 1;
         } else {
-          score = Math.random(); // random order for generic "trending"
+          score = Math.random();
         }
-        
         artists.push({ name: channelName.trim(), thumbnail: channelThumb, score });
         if (artists.length >= 30) break;
       }
 
       artists.sort((a, b) => b.score - a.score);
-      const response = artists.map(({ name, thumbnail }) => ({ name, thumbnail }));
       res.set('Cache-Control', 'public, max-age=300');
-      res.json(response);
+      res.json(artists.map(({ name, thumbnail }) => ({ name, thumbnail })));
     } catch (e) {
       console.error("[Server] Artist search error:", e);
       res.status(500).json({ error: "Search failed" });
@@ -838,18 +877,55 @@ async function startServer() {
   // ── Your Mix ─────────────────────────────────────────────────────────────────
   app.get("/api/mix", isAuthenticated, async (req: any, res: any) => {
     try {
-      // Get top artists from history
-      const history = db.prepare("SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5").all(req.session.userId) as any[];
+      const historyRes = await db.execute({
+        sql: "SELECT artist, COUNT(*) as plays FROM listen_history WHERE user_id = ? GROUP BY artist ORDER BY plays DESC LIMIT 5",
+        args: [req.userId]
+      });
 
       let query = "chill music mix";
-      if (history.length > 0) {
-        const topArtists = history.slice(0, 3).map((h: any) => h.artist).join(" ");
+      if (historyRes.rows.length > 0) {
+        const topArtists = historyRes.rows.slice(0, 3).map((h: any) => h.artist).join(" ");
         query = `${topArtists} similar chill mix`;
       }
       const tracks = await youtubeSearch(query, 25);
       res.json(tracks);
     } catch {
       res.status(500).json({ error: "Failed to generate mix" });
+    }
+  });
+
+  // ── Native Audio Stream Extraction ──────────────────────────────────────────
+  const streamCache = new Map<string, { url: string, expiresAt: number }>();
+
+  app.get("/api/stream/:videoId", async (req, res) => {
+    const videoId = req.params.videoId;
+    
+    // Cache check
+    const cached = streamCache.get(videoId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.redirect(cached.url);
+    }
+
+    try {
+      const info = await ytdl.getInfo(videoId);
+      const format = ytdl.chooseFormat(info.formats, { 
+        filter: 'audioonly', 
+        quality: 'highestaudio' 
+      });
+
+      if (format && format.url) {
+        // YouTube stream URLs typically expire in 6 hours
+        streamCache.set(videoId, { 
+          url: format.url, 
+          expiresAt: Date.now() + 5 * 60 * 60 * 1000 
+        });
+        res.redirect(format.url);
+      } else {
+        res.status(404).send("No audio format found");
+      }
+    } catch (error) {
+      console.error(`[Stream Error] ${videoId}:`, error);
+      res.status(500).send("Extraction failed");
     }
   });
 

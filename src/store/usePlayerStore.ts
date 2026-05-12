@@ -95,21 +95,35 @@ interface PlayerState {
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
+// ─── API configuration ────────────────────────────────────────────────────────
+// IMPORTANT: For mobile apps, you MUST set a full URL (e.g., https://your-server.com)
+// Relative paths (/api/...) will only work if the web app and server share the same origin.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const auth = await getAuth();
   const headers: Record<string, string> = { ...((opts?.headers as any) || {}) };
   
-  if (auth.currentUser) {
-    const token = await auth.currentUser.getIdToken();
-    headers['Authorization'] = `Bearer ${token}`;
+  // 1. Try to get local JWT first (native-friendly)
+  const localToken = localStorage.getItem('vibestream_token');
+  if (localToken) {
+    headers['Authorization'] = `Bearer ${localToken}`;
+  } else {
+    // 2. Fallback to Firebase token if logged in but no local token yet
+    const auth = await getAuth();
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
 
   const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+  
+  if (import.meta.env.DEV) {
+    console.log(`[apiFetch] Request: ${opts?.method || 'GET'} ${finalUrl}`);
+  }
+
   try {
     const r = await fetch(finalUrl, { 
-      credentials: 'include', 
       ...opts,
       headers
     });
@@ -264,7 +278,10 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       // ── Auth ─────────────────────────────────────────────────────────────────
-      login: (user) => {
+      login: (userData: any) => {
+        // userData can be { user, token }
+        const { user, token } = userData;
+        if (token) localStorage.setItem('vibestream_token', token);
         set({ user });
         get().syncFromServer();
       },
@@ -274,16 +291,17 @@ export const usePlayerStore = create<PlayerState>()(
           const { signInWithPopup } = await import('firebase/auth');
           const result = await signInWithPopup(auth, googleProvider);
           const fUser = result.user;
+          const fToken = await fUser.getIdToken();
           
-          const user: User = {
-            id: fUser.uid,
-            username: fUser.displayName || fUser.email?.split('@')[0] || 'User',
-            email: fUser.email || '',
-            avatar: fUser.photoURL || ''
-          };
+          // Exchange Firebase token for our JWT
+          const { user, token } = await apiFetch('/api/auth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: fToken })
+          });
           
+          if (token) localStorage.setItem('vibestream_token', token);
           set({ user });
-          // After google login, we update history/playlists from server or just use local
           await get().syncFromServer();
         } catch (err) {
           console.error('[Auth] Google Login failed:', err);
@@ -315,57 +333,47 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
       logout: async () => {
-        await apiFetch('/api/auth/logout', { method: 'POST' });
+        localStorage.removeItem('vibestream_token');
         set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
       },
       initAuth: async () => {
         const { auth } = await import('../lib/firebase');
         
-        // 1. FAST CACHE: If we already have a user loaded from the local persistent cache, 
-        // silently trigger a sync early so the UI feels instantaneous while Firebase wakes up.
-        if (get().user) {
-          get().syncFromServer().catch((err) => console.error('[Auth] early sync failed', err));
+        // 1. FAST CACHE: If we already have a user and token, sync immediately
+        if (get().user && localStorage.getItem('vibestream_token')) {
+          get().syncFromServer().catch(() => {});
         }
 
-        // 2. VERIFICATION: Give Firebase a moment to restore the remote session.
-        await new Promise<void>((resolve) => {
-          const unsubscribe = auth.onAuthStateChanged(async (fUser) => {
-            if (fUser) {
-              unsubscribe(); // Stop listening once we found the user
-              try {
-                const token = await fUser.getIdToken();
-                // Handshake with backend to establish session cookie
-                const user = await apiFetch('/api/auth/token', {
-                  method: 'POST',
-                  body: JSON.stringify({ token })
-                });
-                
-                if (user) {
-                  set({ user });
-                  await get().syncFromServer();
-                }
-              } catch (err) {
-                console.error('[Auth] initAuth failed to sync with backend:', err);
+        // 2. VERIFICATION: Restore remote session if Firebase is active
+        auth.onAuthStateChanged(async (fUser) => {
+          if (fUser) {
+            try {
+              const fToken = await fUser.getIdToken();
+              const { user, token } = await apiFetch('/api/auth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: fToken })
+              });
+              
+              if (token) localStorage.setItem('vibestream_token', token);
+              if (user) {
+                set({ user });
+                await get().syncFromServer();
               }
-              resolve();
-            } else {
-              // If Firebase explicitly says no user, give it a brief moment.
-              // Firebase sometimes emits 'null' immediately before emitting the actual user.
-              setTimeout(() => {
-                if (!auth.currentUser) {
-                  unsubscribe();
-                  // VERIFIED LOGOUT: If Firebase truly confirms there's no session, wipe the cache locally.
-                  if (get().user) {
-                    set({ user: null, playlists: [], likedSongs: [], followedArtists: [], listeningHistory: [] });
-                  }
-                  resolve();
-                }
-              }, 1500);
+            } catch (err) {
+              console.error('[Auth] initAuth sync failed:', err);
             }
-          });
-          
-          // Failsafe: Don't block the app indefinitely
-          setTimeout(resolve, 3000);
+          } else {
+            // If Firebase says no user, but we have a local JWT, we can still be logged in!
+            // This is crucial for offline/native support.
+            if (localStorage.getItem('vibestream_token')) {
+              get().syncFromServer().catch(() => {
+                // If sync fails with 401, then we really are logged out
+                localStorage.removeItem('vibestream_token');
+                set({ user: null });
+              });
+            }
+          }
         });
       },
       syncFromServer: async () => {

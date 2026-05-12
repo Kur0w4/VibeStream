@@ -5,19 +5,16 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
-import { loadYouTubeApi } from '../lib/youtube';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Pure Helpers (defined outside component to avoid recreation on each render) ─
 
-const YT_DIV_ID = 'vibestream-yt-player';
-
-function formatTime(seconds: number): string {
+const formatTime = (seconds: number): string => {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
   const min = Math.floor(seconds / 60);
   const sec = Math.floor(seconds % 60);
   return `${min}:${sec.toString().padStart(2, '0')}`;
-}
+};
 
 
 
@@ -30,183 +27,92 @@ const PlayerInner = () => {
     seekTrigger
   } = usePlayerStore();
 
-  const ytPlayerRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [isYTReady, setIsYTReady] = useState(false); // New: Tracks raw onReady event
   const [playerError, setPlayerError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFirstLoad = useRef(true);
-  const isReadyRef = useRef(false);
 
-  // Sync isReady React state with Ref for interval access
-  const updateIsReady = useCallback((val: boolean) => {
-    isReadyRef.current = val;
-    setIsReady(val);
-  }, []);
+  // ─── Native Audio Handlers ──────────────────────────────────────────────────
+  
+  const handleTimeUpdate = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const p = audio.currentTime / audio.duration;
+    if (!isNaN(p)) setProgress(p);
+  };
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  const handleLoadedMetadata = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    setDuration(audio.duration);
+    setIsReady(true);
+    if (isPlaying) audio.play().catch(() => {});
+  };
 
-  const clearProgress = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
+  const handleEnded = () => {
+    if (repeatMode === 'one') {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      }
+    } else {
+      nextTrack();
     }
   };
 
-  const startProgress = useCallback(() => {
-    clearProgress();
-    progressIntervalRef.current = setInterval(() => {
-      const player = ytPlayerRef.current;
-      // Use Ref to check readiness inside interval to avoid stale closures
-      if (!player || !isReadyRef.current) return;
-      try {
-        const current: number = player.getCurrentTime?.() ?? 0;
-        const total: number = player.getDuration?.() ?? 0;
-        if (total > 0) { setProgress(current / total); setDuration(total); }
-      } catch (_) {}
-    }, 500);
-  }, [setProgress, setDuration]);
+  const handleError = (e: any) => {
+    console.error('[Audio] Error:', e);
+    setPlayerError(true);
+    setIsReady(true);
+  };
 
-
-
-  // ─── Create YT Player once ─────────────────────────────────────────────────
-
+  // Sync isPlaying state with audio element
   useEffect(() => {
-    let destroyed = false;
-    loadYouTubeApi().then(() => {
-      if (destroyed) return;
-      const player = new window.YT.Player(YT_DIV_ID, {
-        width: '100%', height: '100%',
-        playerVars: { controls: 0, rel: 0, modestbranding: 1, playsinline: 1, origin: window.location.origin, enablejsapi: 1 },
-        events: {
-          onReady: () => {
-            console.log('[YT] Player ready');
-            ytPlayerRef.current = player;
-            setIsYTReady(true);
-            updateIsReady(true); // Immediate readiness to hide spinner
-            try { player.setVolume(Math.round(volume * 100)); if (isMuted) player.mute(); } catch (_) {}
-          },
-          onStateChange: (e: any) => {
-            const state = e.data;
-            if (state === window.YT.PlayerState.PLAYING) {
-              updateIsReady(true); setPlayerError(false); setIsPlaying(true); startProgress();
-              try { const dur = player.getDuration?.() ?? 0; if (dur > 0) setDuration(dur); } catch (_) {}
-            } else if (state === window.YT.PlayerState.PAUSED) {
-              const { isPlaying: intendedPlaying, setIsPlaying } = usePlayerStore.getState();
-              if (intendedPlaying && document.hidden) {
-                // Background playback hack: YouTube's iframe API automatically pauses video when the browser tab is hidden on mobile.
-                // If our app state says we should be playing, we immediately force it to resume.
-                setTimeout(() => {
-                  try { player.playVideo(); } catch (_) {}
-                }, 50);
-              } else {
-                setIsPlaying(false); clearProgress();
-              }
-            } else if (state === window.YT.PlayerState.CUED) {
-              updateIsReady(true);
-            } else if (state === window.YT.PlayerState.ENDED) {
-              const { repeatMode, nextTrack, setIsPlaying } = usePlayerStore.getState();
-              if (repeatMode === 'one') {
-                player.seekTo(0);
-                player.playVideo();
-              } else {
-                setIsPlaying(false); clearProgress(); setProgress(0);
-                nextTrack();
-              }
-            }
-          },
-          onError: (e: any) => {
-            console.error('[YT] error:', e.data);
-            setPlayerError(true); updateIsReady(false); setIsPlaying(false); clearProgress();
-          },
-        },
+    const audio = audioRef.current;
+    if (!audio || !isReady) return;
+
+    if (isPlaying) {
+      audio.play().catch(err => {
+        console.warn("[Audio] Play blocked by browser:", err);
+        setIsPlaying(false);
       });
-      // Do NOT set ytPlayerRef.current here synchronously; wait for onReady
-    });
-    return () => { destroyed = true; clearProgress(); try { ytPlayerRef.current?.destroy(); } catch (_) {} };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Single robust effect to handle track loading and initial restoration
-  useEffect(() => {
-    const player = ytPlayerRef.current;
-    if (!player || !isYTReady || !currentTrack?.videoId) return;
-
-    setPlayerError(false);
-    updateIsReady(false); // Show spinner while loading actual video context
-
-    let startSeconds = 0;
-    if (isFirstLoad.current) {
-      startSeconds = Math.floor((progress || 0) * (duration || 0));
-      isFirstLoad.current = false;
     } else {
-      setProgress(0);
+      audio.pause();
     }
-    
-    clearProgress();
-    try { 
-      // If we are recovering a session and it was playing, load it.
-      // Otherwise cue it so it doesn't autoplay without user intent.
-      if (isPlaying) {
-        player.loadVideoById({ videoId: currentTrack.videoId, startSeconds }); 
-      } else {
-        player.cueVideoById({ videoId: currentTrack.videoId, startSeconds });
-      }
-    }
-    catch (err) { console.error('[YT] loadVideoById error:', err); setPlayerError(true); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTrack?.videoId, isYTReady]);
+  }, [isPlaying, isReady, setIsPlaying]);
 
-  // Handle Play/Pause commands ONLY when player is ready
+  // Sync volume and mute
   useEffect(() => {
-    const player = ytPlayerRef.current;
-    if (!player || !isYTReady || !isReady) return;
-    try { 
-      if (isPlaying) { 
-        player.playVideo(); 
-        startProgress(); 
-        audioRef.current?.play().catch(() => {});
-      } else { 
-        player.pauseVideo(); 
-        clearProgress(); 
-        audioRef.current?.pause();
-      } 
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
     }
-    catch (_) {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, isReady, isYTReady]);
-
-  useEffect(() => {
-    const player = ytPlayerRef.current;
-    if (!player) return;
-    try { if (isMuted) player.mute(); else { player.unMute(); player.setVolume(Math.round(volume * 100)); } }
-    catch (_) {}
   }, [volume, isMuted]);
-  
-  // Force Seek to start when seekTrigger changes
-  useEffect(() => {
-    const player = ytPlayerRef.current;
-    if (!player || !isReady || seekTrigger === 0) return;
-    try { player.seekTo(0, true); } catch (_) {}
-  }, [seekTrigger, isReady]);
 
-  // ─── Media Session API (Lock screen & OS controls) ─────────────────────────
+  // Handle Seek Trigger
+  useEffect(() => {
+    if (audioRef.current && seekTrigger !== 0) {
+      audioRef.current.currentTime = 0;
+    }
+  }, [seekTrigger]);
+
+  // Restore progress on first load
+  useEffect(() => {
+    if (isReady && isFirstLoad.current && progress > 0 && audioRef.current) {
+      audioRef.current.currentTime = progress * audioRef.current.duration;
+      isFirstLoad.current = false;
+    }
+  }, [isReady, progress]);
+
+  // ─── Media Session API ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack) return;
-
     navigator.mediaSession.metadata = new window.MediaMetadata({
       title: currentTrack.title,
       artist: currentTrack.artist,
       album: 'VibeStream',
       artwork: [
-        { src: currentTrack.thumbnail, sizes: '96x96', type: 'image/jpeg' },
-        { src: currentTrack.thumbnail, sizes: '128x128', type: 'image/jpeg' },
-        { src: currentTrack.thumbnail, sizes: '192x192', type: 'image/jpeg' },
-        { src: currentTrack.thumbnail, sizes: '256x256', type: 'image/jpeg' },
-        { src: currentTrack.thumbnail, sizes: '384x384', type: 'image/jpeg' },
         { src: currentTrack.thumbnail, sizes: '512x512', type: 'image/jpeg' },
       ],
     });
@@ -219,41 +125,24 @@ const PlayerInner = () => {
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-
     const ms = navigator.mediaSession;
-    ms.setActionHandler('play', () => { setIsPlaying(true); });
-    ms.setActionHandler('pause', () => { setIsPlaying(false); });
-    ms.setActionHandler('previoustrack', () => { prevTrack(); });
-    ms.setActionHandler('nexttrack', () => { nextTrack(); });
-    ms.setActionHandler('seekbackward', (details) => {
-      const player = ytPlayerRef.current;
-      if (!player) return;
-      const skipTime = details.seekOffset || 10;
-      player.seekTo(Math.max(player.getCurrentTime() - skipTime, 0), true);
+    ms.setActionHandler('play', () => setIsPlaying(true));
+    ms.setActionHandler('pause', () => setIsPlaying(false));
+    ms.setActionHandler('previoustrack', () => prevTrack());
+    ms.setActionHandler('nexttrack', () => nextTrack());
+    ms.setActionHandler('seekto', (details) => {
+      if (details.seekTime !== undefined && audioRef.current) {
+        audioRef.current.currentTime = details.seekTime;
+      }
     });
-    ms.setActionHandler('seekforward', (details) => {
-      const player = ytPlayerRef.current;
-      if (!player) return;
-      const skipTime = details.seekOffset || 10;
-      player.seekTo(player.getCurrentTime() + skipTime, true);
-    });
-
-    return () => {
-      ms.setActionHandler('play', null);
-      ms.setActionHandler('pause', null);
-      ms.setActionHandler('previoustrack', null);
-      ms.setActionHandler('nexttrack', null);
-      ms.setActionHandler('seekbackward', null);
-      ms.setActionHandler('seekforward', null);
-    };
   }, [setIsPlaying, prevTrack, nextTrack]);
 
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setProgress(val);
-    const player = ytPlayerRef.current;
-    if (!player) return;
-    try { const dur = player.getDuration?.() ?? 0; if (dur > 0) player.seekTo(val * dur, true); } catch (_) {}
+    if (audioRef.current && audioRef.current.duration) {
+      audioRef.current.currentTime = val * audioRef.current.duration;
+    }
   }, [setProgress]);
 
 
@@ -261,7 +150,17 @@ const PlayerInner = () => {
 
   return (
     <div className={cn('fixed inset-0 pointer-events-none z-50', !currentTrack && 'opacity-0')}>
-      <audio ref={audioRef} src={SILENT_AUDIO_URI} loop playsInline className="hidden" />
+      <audio 
+        ref={audioRef} 
+        src={currentTrack ? `/api/stream/${currentTrack.videoId}` : ''}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded}
+        onError={handleError}
+        preload="auto"
+        playsInline 
+        className="hidden" 
+      />
       <div className="pointer-events-auto">
 
         {/* ══ YouTube Player container (Video square / MV Mode) ══ */}
@@ -313,13 +212,14 @@ const PlayerInner = () => {
             </div>
           )}
 
-          <div className={cn('absolute z-10 transition-all duration-500 overflow-hidden', 
-            isReady ? 'opacity-100' : 'opacity-0',
-            isExpanded 
-              ? 'inset-0 rounded-none' 
-              : 'inset-0 pointer-events-none md:pointer-events-auto'
+          <div className={cn('absolute z-10 transition-all duration-500 overflow-hidden inset-0', 
+            isReady ? 'opacity-100' : 'opacity-0'
           )}>
-            <div id={YT_DIV_ID} className="w-[150%] h-[150%] -top-1/4 -left-1/4 relative pointer-events-auto md:w-full md:h-full md:top-0 md:left-0" />
+            <img 
+              src={currentTrack?.thumbnail} 
+              alt="" 
+              className="w-full h-full object-cover"
+            />
           </div>
         </div>
 
