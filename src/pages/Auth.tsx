@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { usePlayerStore, API_BASE_URL } from '../store/usePlayerStore';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Capacitor } from '@capacitor/core';
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
@@ -72,15 +73,15 @@ export const Auth = () => {
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-500/5 rounded-full blur-[120px] animate-pulse delay-700" />
       </div>
 
-      <Link 
-        to="/" 
-        className="absolute top-8 left-8 flex items-center gap-2 text-text-dim hover:text-white transition-all group z-10"
+      <button 
+        onClick={() => navigate('/')}
+        className="absolute top-8 left-8 flex items-center gap-3 text-text-dim hover:text-white transition-all group z-10 bg-black/40 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 hover:bg-white/10"
       >
-        <div className="p-2.5 bg-white/5 rounded-xl border border-white/10 group-hover:scale-110 transition-transform">
+        <div className="p-1 bg-white/5 rounded-lg">
           <ArrowLeft className="w-5 h-5" />
         </div>
-        <span className="font-bold text-sm tracking-tight">Back to VibeStream</span>
-      </Link>
+        <span className="font-bold text-sm tracking-tight">Regresar a VibeStream</span>
+      </button>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -104,18 +105,24 @@ export const Auth = () => {
             </div>
           </div>
 
-          {/* Google Auth */}
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-4 bg-white hover:bg-gray-100 text-black font-black py-4.5 rounded-[24px] transition-all shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50"
-          >
-            <GoogleIcon />
-            <span className="text-sm tracking-tight">{tab === 'login' ? 'Sign in with Google' : 'Sign up with Google'}</span>
-          </button>
+          {/* Google Auth - Web Only */}
+          {!Capacitor.isNativePlatform() ? (
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-4 bg-white hover:bg-gray-100 text-black font-black py-4.5 rounded-[24px] transition-all shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              <GoogleIcon />
+              <span className="text-sm tracking-tight">{tab === 'login' ? 'Sign in with Google' : 'Sign up with Google'}</span>
+            </button>
+          ) : (
+            <div className="w-full flex flex-col items-center justify-center gap-2 bg-white/5 py-4 px-6 rounded-[24px] border border-white/10">
+              <span className="text-sm text-white/70 text-center font-medium">Google Login requiere configuración nativa. Por favor usa tu email para la app Android.</span>
+            </div>
+          )}
 
-          <div className="flex items-center gap-4 my-10">
+          <div className="flex items-center gap-4 my-8">
             <div className="h-px flex-1 bg-white/5" />
             <span className="text-[10px] font-black text-text-dim uppercase tracking-widest">or use email</span>
             <div className="h-px flex-1 bg-white/5" />

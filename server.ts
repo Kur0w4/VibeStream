@@ -1109,6 +1109,39 @@ async function startServer() {
       console.warn(`[Stream] ytdl-core failed for ${videoId}: ${ytdlErr?.message?.slice(0, 100)}`);
     }
 
+    // Strategy 3: Piped API Fallback (Extremely robust public instances)
+    try {
+      console.log(`[Stream] Trying Piped API fallback for ${videoId}...`);
+      const pipedInstances = [
+        'https://pipedapi.kavin.rocks',
+        'https://api.piped.projectsegfau.lt'
+      ];
+      
+      for (const instance of pipedInstances) {
+        try {
+          const res = await fetch(`${instance}/streams/${videoId}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const audioStreams = data.audioStreams;
+          if (audioStreams && audioStreams.length > 0) {
+            // Sort by bitrate descending
+            audioStreams.sort((a: any, b: any) => b.bitrate - a.bitrate);
+            const bestAudio = audioStreams[0];
+            if (bestAudio && bestAudio.url) {
+              const contentType = bestAudio.mimeType?.split(';')[0] || 'audio/webm';
+              streamUrlCache.set(videoId, { url: bestAudio.url, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+              console.log(`[Stream] Piped API (${instance}) extracted ${contentType} for ${videoId}`);
+              return { url: bestAudio.url, contentType };
+            }
+          }
+        } catch (e) {
+          continue; // Try next instance
+        }
+      }
+    } catch (pipedErr: any) {
+      console.warn(`[Stream] Piped API fallback failed for ${videoId}:`, pipedErr);
+    }
+
     return null;
   }
 
