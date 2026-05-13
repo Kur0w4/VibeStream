@@ -381,7 +381,7 @@ async function startServer() {
   });
 
   // Health Check
-  app.get("/", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
+  app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "VibeStream API" }));
 
   // Debug Auth (Replacement for Session Debug)
   app.get("/api/debug/auth", async (req: any, res: any) => {
@@ -1178,7 +1178,8 @@ async function startServer() {
       for (const instance of pipedInstances) {
         try {
           const res = await fetch(`${instance}/streams/${videoId}`, {
-            headers: { 'Accept': 'application/json' }
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(4000)
           });
           if (!res.ok) continue;
           const data = await res.json();
@@ -1214,7 +1215,7 @@ async function startServer() {
       ];
       for (const inst of invidInstances) {
         try {
-          const res = await fetch(`${inst}/api/v1/videos/${videoId}`);
+          const res = await fetch(`${inst}/api/v1/videos/${videoId}`, { signal: AbortSignal.timeout(4000) });
           if (!res.ok) continue;
           const data = await res.json();
           if (data.adaptiveFormats) {

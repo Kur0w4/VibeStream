@@ -92,8 +92,8 @@ interface PlayerState {
 }
 
 // ─── API configuration ────────────────────────────────────────────────────────
-// IMPORTANT: For mobile apps, you MUST set a full URL (e.g., https://your-server.com)
-// Relative paths (/api/...) will only work if the web app and server share the same origin.
+// The API URL must point to your backend server (e.g., Render for production, or your local IP for testing Capacitor).
+// For the deployed Firebase web app, it MUST point to the Render backend.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const usePlayerStore = create<PlayerState>()(
