@@ -952,16 +952,33 @@ async function startServer() {
       } catch (e) {
         console.warn('[Artist Search] Direct channel search failed, trying Piped...');
         try {
-          const pipedRes = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(q)}&filter=channels`);
-          if (pipedRes.ok) {
-            const data = await pipedRes.json();
-            if (data.items) {
-              rawChannels = data.items.map((i: any) => ({
-                name: i.name,
-                icon: { url: i.thumbnail },
-                id: i.url.split('/').pop()
-              }));
-            }
+          const searchInstances = [
+            'https://pipedapi.kavin.rocks',
+            'https://api.piped.projectsegfau.lt',
+            'https://pipedapi.moomoo.me',
+            'https://piped-api.garudalinux.org',
+            'https://pipedapi.mha.fi',
+            'https://pipedapi.lunar.icu',
+            'https://piped.adminforge.de',
+            'https://piped.yt.akoh.net',
+            'https://piped.nixnet.services',
+            'https://piped-api.tokyo.convo.casa'
+          ];
+          for (const inst of searchInstances) {
+            try {
+              const pipedRes = await fetch(`${inst}/search?q=${encodeURIComponent(q)}&filter=channels`, { signal: AbortSignal.timeout(3000) });
+              if (pipedRes.ok) {
+                const data = await pipedRes.json();
+                if (data.items && data.items.length > 0) {
+                  rawChannels = data.items.map((i: any) => ({
+                    name: i.name,
+                    icon: { url: i.thumbnail },
+                    id: i.url.split('/').pop()
+                  }));
+                  break;
+                }
+              }
+            } catch (e) { continue; }
           }
         } catch (pe) {}
       }
@@ -1151,7 +1168,11 @@ async function startServer() {
         'https://pipedapi.kavin.rocks',
         'https://api.piped.projectsegfau.lt',
         'https://pipedapi.moomoo.me',
-        'https://piped-api.garudalinux.org'
+        'https://piped-api.garudalinux.org',
+        'https://pipedapi.mha.fi',
+        'https://pipedapi.lunar.icu',
+        'https://pipedapi.us.to',
+        'https://pipedapi.adminforge.de'
       ];
       
       for (const instance of pipedInstances) {
@@ -1183,7 +1204,14 @@ async function startServer() {
     // Strategy 4: Invidious API Fallback
     try {
       console.log(`[Stream] Trying Invidious fallback for ${videoId}...`);
-      const invidInstances = ['https://yewtu.be', 'https://invidious.snopyta.org', 'https://vid.puffyan.us'];
+      const invidInstances = [
+        'https://yewtu.be',
+        'https://invidious.snopyta.org',
+        'https://vid.puffyan.us',
+        'https://invidious.kavin.rocks',
+        'https://inv.riverside.rocks',
+        'https://invidious.namazso.eu'
+      ];
       for (const inst of invidInstances) {
         try {
           const res = await fetch(`${inst}/api/v1/videos/${videoId}`);
