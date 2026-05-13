@@ -945,30 +945,50 @@ async function startServer() {
       const seen = new Set<string>();
       const artists: { name: string; thumbnail: string; score: number }[] = [];
 
-      // Search channels directly first
-      let channelResults: any[] = [];
+      // Artist Search Strategy 1: Direct channel search (youtube-sr)
+      let rawChannels: any[] = [];
       try {
-        channelResults = await YouTube.search(q, { limit: 15, type: 'channel' });
+        rawChannels = await YouTube.search(q, { limit: 15, type: 'channel' });
       } catch (e) {
-        console.warn('[Artist Search] youtube-sr failed, trying Piped fallback...');
+        console.warn('[Artist Search] Direct channel search failed, trying Piped...');
         try {
           const pipedRes = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(q)}&filter=channels`);
           if (pipedRes.ok) {
             const data = await pipedRes.json();
             if (data.items) {
-              channelResults = data.items.map((i: any) => ({
+              rawChannels = data.items.map((i: any) => ({
                 name: i.name,
                 icon: { url: i.thumbnail },
-                title: i.name
+                id: i.url.split('/').pop()
               }));
             }
           }
-        } catch (pe) {
-          console.error('[Artist Search] Piped fallback also failed:', pe);
+        } catch (pe) {}
+      }
+
+      // Artist Search Strategy 2: Video search + unique channel extraction (Reliable fallback)
+      if (rawChannels.length < 3) {
+        try {
+          console.log('[Artist Search] Using video-based channel extraction fallback...');
+          const videoResults = await YouTube.search(q, { limit: 20, type: 'video' });
+          const seenIds = new Set(rawChannels.map(c => c.id || c.name));
+          
+          for (const v of videoResults) {
+            if (v.channel && v.channel.id && !seenIds.has(v.channel.id)) {
+              seenIds.add(v.channel.id);
+              rawChannels.push({
+                id: v.channel.id,
+                name: v.channel.name,
+                icon: v.channel.icon
+              });
+            }
+          }
+        } catch (e) {
+          console.error('[Artist Search] Video fallback failed:', e);
         }
       }
 
-      for (const ch of channelResults) {
+      for (const ch of rawChannels) {
         let name = ch.name || ch.title || '';
         if (!name) continue;
         if (name.toLowerCase().endsWith(' - topic')) name = name.slice(0, -8);

@@ -3,24 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Loader2 } from 'lucide-react';
 
-// Lazy load pages for performance
-const Search = lazy(() => import('./components/Search').then(m => ({ default: m.Search })));
-const Trends = lazy(() => import('./pages/Trends').then(m => ({ default: m.Trends })));
-const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Library })));
-const LikedSongs = lazy(() => import('./pages/LikedSongs').then(m => ({ default: m.LikedSongs })));
-const Playlists = lazy(() => import('./pages/Playlists').then(m => ({ default: m.Playlists })));
-const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail').then(m => ({ default: m.PlaylistDetail })));
-const Artists = lazy(() => import('./pages/Artists').then(m => ({ default: m.Artists })));
-const ArtistProfile = lazy(() => import('./pages/ArtistProfile').then(m => ({ default: m.ArtistProfile })));
-const History = lazy(() => import('./pages/History').then(m => ({ default: m.History })));
-const Auth = lazy(() => import('./pages/Auth').then(m => ({ default: m.Auth })));
-const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
-const OfflineTracks = lazy(() => import('./pages/OfflineTracks').then(m => ({ default: m.OfflineTracks })));
+import { Search } from './components/Search';
+import { Trends } from './pages/Trends';
+import { Library } from './pages/Library';
+import { LikedSongs } from './pages/LikedSongs';
+import { Playlists } from './pages/Playlists';
+import { PlaylistDetail } from './pages/PlaylistDetail';
+import { Artists } from './pages/Artists';
+import { ArtistProfile } from './pages/ArtistProfile';
+import { History } from './pages/History';
+import { Auth } from './pages/Auth';
+import { Settings } from './pages/Settings';
+import { OfflineTracks } from './pages/OfflineTracks';
 
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-20 animate-in fade-in duration-500">
@@ -33,22 +32,20 @@ export default function App() {
   return (
     <Router>
       <Layout>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Search />} />
-            <Route path="/trends" element={<Trends />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/library/history" element={<History />} />
-            <Route path="/liked-songs" element={<LikedSongs />} />
-            <Route path="/playlists" element={<Playlists />} />
-            <Route path="/playlists/:id" element={<PlaylistDetail />} />
-            <Route path="/artists" element={<Artists />} />
-            <Route path="/artists/:name" element={<ArtistProfile />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/library/offline" element={<OfflineTracks />} />
-          </Routes>
-        </Suspense>
+        <Routes>
+          <Route path="/" element={<Search />} />
+          <Route path="/trends" element={<Trends />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/library/history" element={<History />} />
+          <Route path="/liked-songs" element={<LikedSongs />} />
+          <Route path="/playlists" element={<Playlists />} />
+          <Route path="/playlists/:id" element={<PlaylistDetail />} />
+          <Route path="/artists" element={<Artists />} />
+          <Route path="/artists/:name" element={<ArtistProfile />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/library/offline" element={<OfflineTracks />} />
+        </Routes>
       </Layout>
     </Router>
   );
