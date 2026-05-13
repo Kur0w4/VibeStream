@@ -38,7 +38,10 @@ export const Sidebar = ({ className }: { className?: string }) => {
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tighter text-white group-hover:text-accent transition-colors">VIBESTREAM</h1>
-            <span className="text-[10px] font-bold text-accent uppercase tracking-widest leading-none">Premium</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-accent uppercase tracking-widest leading-none">Premium</span>
+              <span className="text-[8px] font-black text-white/30 bg-white/5 px-1.5 py-0.5 rounded-sm">v1.0.5</span>
+            </div>
           </div>
         </button>
 

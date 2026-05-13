@@ -950,7 +950,22 @@ async function startServer() {
       try {
         channelResults = await YouTube.search(q, { limit: 15, type: 'channel' });
       } catch (e) {
-        console.warn('[Artist Search] Channel search failed, using video fallback:', e);
+        console.warn('[Artist Search] youtube-sr failed, trying Piped fallback...');
+        try {
+          const pipedRes = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(q)}&filter=channels`);
+          if (pipedRes.ok) {
+            const data = await pipedRes.json();
+            if (data.items) {
+              channelResults = data.items.map((i: any) => ({
+                name: i.name,
+                icon: { url: i.thumbnail },
+                title: i.name
+              }));
+            }
+          }
+        } catch (pe) {
+          console.error('[Artist Search] Piped fallback also failed:', pe);
+        }
       }
 
       for (const ch of channelResults) {
@@ -1114,32 +1129,59 @@ async function startServer() {
       console.log(`[Stream] Trying Piped API fallback for ${videoId}...`);
       const pipedInstances = [
         'https://pipedapi.kavin.rocks',
-        'https://api.piped.projectsegfau.lt'
+        'https://api.piped.projectsegfau.lt',
+        'https://pipedapi.moomoo.me',
+        'https://piped-api.garudalinux.org'
       ];
       
       for (const instance of pipedInstances) {
         try {
-          const res = await fetch(`${instance}/streams/${videoId}`);
+          const res = await fetch(`${instance}/streams/${videoId}`, {
+            headers: { 'Accept': 'application/json' }
+          });
           if (!res.ok) continue;
           const data = await res.json();
           const audioStreams = data.audioStreams;
           if (audioStreams && audioStreams.length > 0) {
-            // Sort by bitrate descending
-            audioStreams.sort((a: any, b: any) => b.bitrate - a.bitrate);
-            const bestAudio = audioStreams[0];
+            // Prefer opus/webm
+            const bestAudio = audioStreams.find((s: any) => s.mimeType?.includes('audio/webm')) || audioStreams[0];
             if (bestAudio && bestAudio.url) {
               const contentType = bestAudio.mimeType?.split(';')[0] || 'audio/webm';
-              streamUrlCache.set(videoId, { url: bestAudio.url, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+              streamUrlCache.set(videoId, { url: bestAudio.url, contentType, expiresAt: Date.now() + 2 * 60 * 60 * 1000 });
               console.log(`[Stream] Piped API (${instance}) extracted ${contentType} for ${videoId}`);
               return { url: bestAudio.url, contentType };
             }
           }
         } catch (e) {
-          continue; // Try next instance
+          continue; 
         }
       }
     } catch (pipedErr: any) {
       console.warn(`[Stream] Piped API fallback failed for ${videoId}:`, pipedErr);
+    }
+
+    // Strategy 4: Invidious API Fallback
+    try {
+      console.log(`[Stream] Trying Invidious fallback for ${videoId}...`);
+      const invidInstances = ['https://yewtu.be', 'https://invidious.snopyta.org', 'https://vid.puffyan.us'];
+      for (const inst of invidInstances) {
+        try {
+          const res = await fetch(`${inst}/api/v1/videos/${videoId}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.adaptiveFormats) {
+            const audio = data.adaptiveFormats.find((f: any) => f.type?.includes('audio/webm') || f.type?.includes('audio/mp4'));
+            if (audio && audio.url) {
+              const contentType = audio.type?.split(';')[0] || 'audio/webm';
+              streamUrlCache.set(videoId, { url: audio.url, contentType, expiresAt: Date.now() + 1 * 60 * 60 * 1000 });
+              console.log(`[Stream] Invidious (${inst}) extracted ${contentType} for ${videoId}`);
+              return { url: audio.url, contentType };
+            }
+          }
+        } catch (e) { continue; }
+      }
+    } catch (e) {
+      console.warn(`[Stream] Invidious fallback failed:`, e);
     }
 
     return null;
