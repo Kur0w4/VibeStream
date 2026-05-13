@@ -234,15 +234,19 @@ const MOOD_SEEDS: Record<string, string[]> = {
   romance:  ['romantic soul rnb', 'love song ballads', 'acoustic wedding songs', 'sensual jazz'],
 };
 
-async function youtubeSearch(query: string, limit = 50) {
-  const refinedQuery = query.toLowerCase().includes('official') ? query : `${query} official audio`;
+async function youtubeSearch(query: string, limit = 50, exact = false) {
+  // Only append 'official audio' for non-exact, non-specific queries
+  const words = query.trim().split(/\s+/);
+  const isSpecific = exact || words.length >= 3 || query.toLowerCase().includes('official');
+  const refinedQuery = isSpecific ? query : `${query} official audio`;
   
   const cached = getServerCache(refinedQuery);
   if (cached) return cached;
 
+  const BAD_KEYWORDS = ['full album', '1 hour', 'loop', 'compilation', 'karaoke', 'cover version', 'reaction', 'trailer', 'gameplay'];
+
   try {
     const results = await YouTube.search(refinedQuery, { limit: limit + 20, type: 'video' });
-    const BAD_KEYWORDS = ['full album', '1 hour', 'loop', 'compilation', 'karaoke', 'cover version', 'reaction', 'trailer', 'gameplay'];
     
     let mapped = results
       .filter((v: any) => {
@@ -254,7 +258,6 @@ async function youtubeSearch(query: string, limit = 50) {
       .filter(Boolean)
       .slice(0, limit);
 
-    // FALLBACK: If youtube-sr returns nothing, try the old search-without-api-key
     if (mapped.length === 0) {
       console.log(`[YouTube Search] YouTube-sr returned 0 results. Trying fallback...`);
       const fallbackResults = await search(refinedQuery).catch(() => []);
@@ -274,7 +277,6 @@ async function youtubeSearch(query: string, limit = 50) {
     return mapped;
   } catch (err) {
     console.error("[YouTube Search Error]", err);
-    // Secondary fallback in case of catastrophic failure
     try {
       const fallbackResults = await search(refinedQuery);
       return fallbackResults.map(mapVideo).filter(Boolean).slice(0, limit);
@@ -572,21 +574,35 @@ async function startServer() {
     try {
       console.log(`[Server] Importing playlist: ${url}`);
       
-      let playlistId = url;
-      if (url.includes("list=")) {
-        playlistId = url.split("list=")[1].split("&")[0];
+      // Always use the full URL for best compatibility with youtube-sr
+      let fullUrl = url.trim();
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = `https://www.youtube.com/playlist?list=${fullUrl}`;
+      }
+      // Normalize: ensure we have a clean playlist URL
+      let playlistId = fullUrl;
+      const listMatch = fullUrl.match(/[?&]list=([^&]+)/);
+      if (listMatch) {
+        playlistId = listMatch[1];
+        fullUrl = `https://www.youtube.com/playlist?list=${playlistId}`;
       }
 
-      const playlist = await YouTube.getPlaylist(playlistId).catch(() => null);
+      console.log(`[Server] Resolved playlist URL: ${fullUrl}, ID: ${playlistId}`);
+
+      // Try with full URL first, then with just the ID
+      let playlist = await YouTube.getPlaylist(fullUrl).catch(() => null);
+      if (!playlist) {
+        playlist = await YouTube.getPlaylist(playlistId).catch(() => null);
+      }
       
       if (!playlist) {
-        return res.status(404).json({ error: "Playlist not found. Make sure it is PUBLIC." });
+        return res.status(404).json({ error: "Playlist not found. Asegúrate de que la playlist sea PÚBLICA y que el enlace sea correcto." });
       }
 
       await playlist.fetch(100).catch(() => {});
       
       if (!playlist.videos || playlist.videos.length === 0) {
-        return res.status(400).json({ error: "Playlist is empty." });
+        return res.status(400).json({ error: "La playlist está vacía o no tiene videos accesibles." });
       }
 
       const internalId = Math.random().toString(36).substr(2, 9);
@@ -899,47 +915,92 @@ async function startServer() {
   });
 
   // ── Artist Search ────────────────────────────────────────────────────────────
+  // Default popular artists when no query
+  const DEFAULT_ARTISTS = [
+    { name: 'Bad Bunny', thumbnail: 'https://i.ytimg.com/vi/bkFCJ5YDRB8/hqdefault.jpg' },
+    { name: 'Taylor Swift', thumbnail: 'https://i.ytimg.com/vi/q3zqJs7JUCQ/hqdefault.jpg' },
+    { name: 'Drake', thumbnail: 'https://i.ytimg.com/vi/uxpDa-c--bI/hqdefault.jpg' },
+    { name: 'The Weeknd', thumbnail: 'https://i.ytimg.com/vi/XXYlFuWEuKI/hqdefault.jpg' },
+    { name: 'Billie Eilish', thumbnail: 'https://i.ytimg.com/vi/DyDfgMOUjCI/hqdefault.jpg' },
+    { name: 'Peso Pluma', thumbnail: 'https://i.ytimg.com/vi/Oo3HGqcFD6A/hqdefault.jpg' },
+    { name: 'Karol G', thumbnail: 'https://i.ytimg.com/vi/jt3mgFCq1tg/hqdefault.jpg' },
+    { name: 'Post Malone', thumbnail: 'https://i.ytimg.com/vi/UceaB4D0jpo/hqdefault.jpg' },
+    { name: 'Shakira', thumbnail: 'https://i.ytimg.com/vi/0DF2x7YUGaE/hqdefault.jpg' },
+    { name: 'J Balvin', thumbnail: 'https://i.ytimg.com/vi/p91skxmGuMo/hqdefault.jpg' },
+    { name: 'Ozuna', thumbnail: 'https://i.ytimg.com/vi/k9l4Ty3miMo/hqdefault.jpg' },
+    { name: 'Myke Towers', thumbnail: 'https://i.ytimg.com/vi/IQXBMN5EKPA/hqdefault.jpg' },
+  ];
+
   app.get("/api/search/artist", async (req: any, res: any) => {
     const q = (req.query.q as string)?.trim() || "";
+    
+    if (!q) {
+      // No query: return curated default list
+      res.set('Cache-Control', 'public, max-age=600');
+      return res.json(DEFAULT_ARTISTS);
+    }
+
     try {
-      const yt = (YouTube as any).default?.search ? (YouTube as any).default : YouTube;
-      const [topicResults, officialResults] = await Promise.all([
-        yt.search(q ? `${q} - Topic` : "popular music artists", { limit: 15, type: 'video' }),
-        yt.search(q ? `${q} official music` : "trending singers", { limit: 15, type: 'video' }),
-      ]);
-      const combinedResults = [...topicResults, ...officialResults];
-      
+      const ql = q.toLowerCase();
       const seen = new Set<string>();
       const artists: { name: string; thumbnail: string; score: number }[] = [];
-      const ql = q.toLowerCase();
 
-      for (const v of combinedResults) {
-        let channelName = v.channel?.name || "";
-        let channelThumb = v.channel?.icon?.url || v.thumbnail?.url || "";
-        if (!channelName) continue;
+      // Search channels directly first
+      let channelResults: any[] = [];
+      try {
+        channelResults = await YouTube.search(q, { limit: 15, type: 'channel' });
+      } catch (e) {
+        console.warn('[Artist Search] Channel search failed, using video fallback:', e);
+      }
 
-        if (channelName.toLowerCase().endsWith(" - topic")) channelName = channelName.slice(0, -8);
-        if (channelName.toLowerCase().endsWith("vevo")) channelName = channelName.slice(0, -4).trim();
-        if (seen.has(channelName.toLowerCase())) continue;
-        seen.add(channelName.toLowerCase());
-
+      for (const ch of channelResults) {
+        let name = ch.name || ch.title || '';
+        if (!name) continue;
+        if (name.toLowerCase().endsWith(' - topic')) name = name.slice(0, -8);
+        const nameLower = name.toLowerCase();
+        if (seen.has(nameLower)) continue;
+        seen.add(nameLower);
+        const thumb = ch.icon?.url || ch.thumbnail?.url || ch.snippet?.thumbnails?.high?.url || '';
         let score = 0;
-        if (q) {
-          const cl = channelName.toLowerCase();
-          if (cl === ql) score = 100;
-          else if (cl.startsWith(ql)) score = 50;
-          else if (cl.includes(ql)) score = 20;
-          else score = 1;
-        } else {
-          score = Math.random();
+        if (nameLower === ql) score = 200;
+        else if (nameLower.startsWith(ql)) score = 100;
+        else if (nameLower.includes(ql)) score = 50;
+        else score = 1;
+        artists.push({ name: name.trim(), thumbnail: thumb, score });
+      }
+
+      // Supplement with video channel names if we have few results
+      if (artists.length < 8) {
+        const [topicResults, officialResults] = await Promise.allSettled([
+          YouTube.search(`${q} - Topic`, { limit: 10, type: 'video' }),
+          YouTube.search(`${q} official music`, { limit: 10, type: 'video' }),
+        ]);
+        const videoResults = [
+          ...(topicResults.status === 'fulfilled' ? topicResults.value : []),
+          ...(officialResults.status === 'fulfilled' ? officialResults.value : []),
+        ];
+        for (const v of videoResults) {
+          let name = v.channel?.name || '';
+          if (!name) continue;
+          if (name.toLowerCase().endsWith(' - topic')) name = name.slice(0, -8);
+          if (name.toLowerCase().endsWith('vevo')) name = name.slice(0, -4).trim();
+          const nameLower = name.toLowerCase();
+          if (seen.has(nameLower)) continue;
+          seen.add(nameLower);
+          const thumb = v.channel?.icon?.url || v.thumbnail?.url || '';
+          let score = 0;
+          if (nameLower === ql) score = 180;
+          else if (nameLower.startsWith(ql)) score = 80;
+          else if (nameLower.includes(ql)) score = 30;
+          else score = 0;
+          if (score > 0) artists.push({ name: name.trim(), thumbnail: thumb, score });
         }
-        artists.push({ name: channelName.trim(), thumbnail: channelThumb, score });
-        if (artists.length >= 30) break;
       }
 
       artists.sort((a, b) => b.score - a.score);
+      const top = artists.slice(0, 15);
       res.set('Cache-Control', 'public, max-age=300');
-      res.json(artists.map(({ name, thumbnail }) => ({ name, thumbnail })));
+      res.json(top.map(({ name, thumbnail }) => ({ name, thumbnail })));
     } catch (e) {
       console.error("[Server] Artist search error:", e);
       res.status(500).json({ error: "Search failed" });
@@ -979,37 +1040,136 @@ async function startServer() {
   });
 
   // ── Native Audio Stream Extraction ──────────────────────────────────────────
-  const streamCache = new Map<string, { url: string, expiresAt: number }>();
+  // Uses yt-dlp (via youtube-dl-exec) as primary extractor — it's actively maintained
+  // and bypasses YouTube's decipher/n-transform protections that break ytdl-core.
+  // Falls back to ytdl-core if yt-dlp fails.
+  // We PIPE audio directly through our server (no redirects) so:
+  //   1. Capacitor/APK clients can access audio without CORS issues
+  //   2. Offline downloads work correctly (same-origin fetch)
 
-  app.get("/api/stream/:videoId", async (req, res) => {
-    const videoId = req.params.videoId;
-    
-    // Cache check
-    const cached = streamCache.get(videoId);
+  // URL cache to avoid re-extracting frequently requested tracks
+  const streamUrlCache = new Map<string, { url: string; contentType: string; expiresAt: number }>();
+
+  async function extractAudioUrl(videoId: string): Promise<{ url: string; contentType: string } | null> {
+    // Check cache first
+    const cached = streamUrlCache.get(videoId);
     if (cached && cached.expiresAt > Date.now()) {
-      return res.redirect(cached.url);
+      return { url: cached.url, contentType: cached.contentType };
     }
 
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    // Strategy 1: yt-dlp via youtube-dl-exec (most reliable)
     try {
-      const info = await ytdl.getInfo(videoId);
-      const format = ytdl.chooseFormat(info.formats, { 
-        filter: 'audioonly', 
-        quality: 'highestaudio' 
+      const { youtubeDl } = await import('youtube-dl-exec');
+      const result: any = await youtubeDl(ytUrl, {
+        dumpSingleJson: true,
+        noWarnings: true,
+        noCheckCertificates: true,
+        preferFreeFormats: true,
+        format: 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+        addHeader: [
+          'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          'Referer:https://www.youtube.com/',
+        ],
       });
 
-      if (format && format.url) {
-        // YouTube stream URLs typically expire in 6 hours
-        streamCache.set(videoId, { 
-          url: format.url, 
-          expiresAt: Date.now() + 5 * 60 * 60 * 1000 
-        });
-        res.redirect(format.url);
-      } else {
-        res.status(404).send("No audio format found");
+      if (result && result.url) {
+        const ext = result.ext || 'webm';
+        const contentType = ext === 'webm' ? 'audio/webm' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+        // Cache for 5 hours (YouTube URLs expire in ~6h)
+        streamUrlCache.set(videoId, { url: result.url, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+        console.log(`[Stream] yt-dlp extracted ${contentType} for ${videoId}`);
+        return { url: result.url, contentType };
       }
-    } catch (error) {
-      console.error(`[Stream Error] ${videoId}:`, error);
-      res.status(500).send("Extraction failed");
+    } catch (ytdlpErr: any) {
+      console.warn(`[Stream] yt-dlp failed for ${videoId}: ${ytdlpErr?.message?.slice(0, 100)}`);
+    }
+
+    // Strategy 2: @distube/ytdl-core fallback
+    try {
+      const agent = ytdl.createAgent();
+      const info = await ytdl.getInfo(ytUrl, {
+        agent,
+        requestOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          }
+        }
+      });
+      let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+      if (!format) format = ytdl.chooseFormat(info.formats, { filter: (f: any) => f.hasAudio });
+      if (format?.url) {
+        const contentType = format.mimeType?.split(';')[0] || 'audio/webm';
+        streamUrlCache.set(videoId, { url: format.url, contentType, expiresAt: Date.now() + 4 * 60 * 60 * 1000 });
+        console.log(`[Stream] ytdl-core extracted ${contentType} for ${videoId}`);
+        return { url: format.url, contentType };
+      }
+    } catch (ytdlErr: any) {
+      console.warn(`[Stream] ytdl-core failed for ${videoId}: ${ytdlErr?.message?.slice(0, 100)}`);
+    }
+
+    return null;
+  }
+
+  app.get("/api/stream/:videoId", async (req: any, res: any) => {
+    const videoId = req.params.videoId;
+    console.log(`[Stream] Request for: ${videoId}`);
+
+    try {
+      const extracted = await extractAudioUrl(videoId);
+
+      if (!extracted) {
+        return res.status(404).json({ error: 'No se pudo extraer el audio. El video puede no estar disponible.' });
+      }
+
+      const { url: audioUrl, contentType } = extracted;
+      const rangeHeader = req.headers['range'];
+
+      const fetchHeaders: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+      };
+      if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
+
+      const audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
+
+      if (!audioResponse.ok && audioResponse.status !== 206) {
+        // URL may have expired — clear cache and return error
+        streamUrlCache.delete(videoId);
+        console.error(`[Stream] Audio fetch failed ${audioResponse.status} for ${videoId}`);
+        return res.status(502).json({ error: 'Error al obtener el audio de YouTube.' });
+      }
+
+      // Forward relevant headers
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      const fwdContentLength = audioResponse.headers.get('content-length');
+      if (fwdContentLength) res.setHeader('Content-Length', fwdContentLength);
+      const fwdContentRange = audioResponse.headers.get('content-range');
+      if (fwdContentRange) res.setHeader('Content-Range', fwdContentRange);
+
+      res.status(rangeHeader && audioResponse.status === 206 ? 206 : 200);
+
+      // Pipe audio to client
+      if (audioResponse.body) {
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(audioResponse.body as any);
+        nodeStream.pipe(res);
+        req.on('close', () => nodeStream.destroy());
+        console.log(`[Stream] ✓ Piping ${contentType} for ${videoId}`);
+      } else {
+        res.status(500).json({ error: 'No response body from YouTube' });
+      }
+
+    } catch (error: any) {
+      console.error(`[Stream Error] ${videoId}:`, error?.message || error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error interno al procesar el audio.' });
+      }
     }
   });
 
