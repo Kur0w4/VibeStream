@@ -12,6 +12,7 @@ import cors from "cors";
 import { YouTube } from "youtube-sr";
 import ytdl from "@distube/ytdl-core";
 import { Innertube, UniversalCache } from 'youtubei.js';
+import fs from 'fs';
 
 let globalYt: Innertube | null = null;
 
@@ -293,8 +294,27 @@ async function youtubeSearch(query: string, limit = 50, exact = false) {
 async function startServer() {
   console.log(`[System] Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
   try {
-    globalYt = await Innertube.create({ cache: new UniversalCache(false) });
+    // Inject OAuth credentials from Environment Variable if present
+    const cacheDir = path.join(__dirname, '.ytcache');
+    if (process.env.YOUTUBE_OAUTH_CACHE) {
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      }
+      // youtubei.js usa el nombre de archivo de la clave (usualmente youtubei_oauth)
+      // Guardaremos el contenido ahí para que Innertube lo lea automáticamente.
+      fs.writeFileSync(path.join(cacheDir, 'youtubei_oauth'), process.env.YOUTUBE_OAUTH_CACHE);
+      console.log("[System] YOUTUBE_OAUTH_CACHE injected from environment.");
+    }
+
+    globalYt = await Innertube.create({ cache: new UniversalCache(true, cacheDir) });
     console.log("[System] youtubei.js Innertube initialized");
+    
+    // Check if we are signed in
+    if (globalYt.session.logged_in) {
+       console.log("[System] YouTube Session: LOGGED IN. IP block bypassed!");
+    } else {
+       console.log("[System] YouTube Session: NOT logged in. Operating anonymously.");
+    }
   } catch (err) {
     console.error("[System] Failed to initialize Innertube:", err);
   }
@@ -1033,6 +1053,27 @@ async function startServer() {
     }
 
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    // Strategy 0: youtubei.js (Requires Authenticated Session for Datacenter IPs)
+    if (globalYt && globalYt.session.logged_in) {
+      try {
+        console.log(`[Stream] Trying youtubei.js (Authenticated) for ${videoId}...`);
+        const info = await globalYt.getBasicInfo(videoId);
+        const format = info.chooseFormat({ type: 'audio', quality: 'best' });
+        if (format) {
+          const url = format.decipher(globalYt.session.player);
+          const finalUrl = typeof url === 'string' ? url : format.url;
+          if (finalUrl) {
+            const contentType = format.mime_type?.split(';')[0] || 'audio/webm';
+            streamUrlCache.set(videoId, { url: finalUrl, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+            console.log(`[Stream] youtubei.js extracted ${contentType} for ${videoId}`);
+            return { url: finalUrl, contentType };
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[Stream] youtubei.js extraction failed:`, e?.message);
+      }
+    }
 
     // Strategy 1: yt-dlp via youtube-dl-exec (most reliable)
     try {
