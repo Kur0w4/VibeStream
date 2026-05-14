@@ -40,7 +40,7 @@ export const Sidebar = ({ className }: { className?: string }) => {
             <h1 className="text-xl font-black tracking-tighter text-white group-hover:text-accent transition-colors">VIBESTREAM</h1>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold text-accent uppercase tracking-widest leading-none">Premium</span>
-              <span className="text-[8px] font-black text-white/30 bg-white/5 px-1.5 py-0.5 rounded-sm">v1.0.7</span>
+              <span className="text-[8px] font-black text-white/30 bg-white/5 px-1.5 py-0.5 rounded-sm">v1.0.9</span>
             </div>
           </div>
         </button>

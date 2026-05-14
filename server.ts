@@ -992,9 +992,28 @@ async function startServer() {
           res.set('Cache-Control', 'public, max-age=300');
           return res.json(artists.slice(0, 15));
         }
+
+        // Fallback Strategy: Search for videos and extract channel info if no direct channel found
+        console.log(`[Artist Search] Direct channel search returned 0 for "${q}", trying video search fallback...`);
+        const videoResults = await YouTube.search(q, { limit: 10, type: 'video' });
+        const fallbackArtistsMap = new Map();
+
+        for (const v of videoResults) {
+          if (v.channel && v.channel.name && !fallbackArtistsMap.has(v.channel.name)) {
+            fallbackArtistsMap.set(v.channel.name, {
+              name: v.channel.name,
+              thumbnail: v.channel.iconURL() || ""
+            });
+          }
+        }
+
+        const fallbackArtists = Array.from(fallbackArtistsMap.values());
+        if (fallbackArtists.length > 0) {
+          return res.json(fallbackArtists);
+        }
       }
       
-      console.warn('[Artist Search] youtubei.js returned 0 results or is not initialized.');
+      console.warn('[Artist Search] All search strategies returned 0 results.');
       res.json([]);
     } catch (e) {
       console.error("[Server] Artist search error:", e);

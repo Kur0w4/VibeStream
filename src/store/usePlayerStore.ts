@@ -466,7 +466,11 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             // Fetch the stream as a blob
             const streamUrl = `${API_BASE_URL}/api/stream/${track.videoId}`;
-            const response = await fetch(streamUrl);
+            const response = await fetch(streamUrl, {
+              headers: {
+                'ngrok-skip-browser-warning': 'true'
+              }
+            });
             if (!response.ok) throw new Error("Failed to fetch stream");
             
             const blob = await response.blob();

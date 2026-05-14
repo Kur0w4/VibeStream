@@ -33,15 +33,32 @@ export const TrackDropdown = ({
   const [pos, setPos] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
-    if (triggerRef?.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 6,
-        right: Math.max(4, window.innerWidth - rect.right),
-      });
-    } else {
-      setPos({ top: window.innerHeight - 280, right: 16 });
-    }
+    const updatePos = () => {
+      if (triggerRef?.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const menuHeight = 280;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        
+        // Prefer showing below, but if no space, show above
+        let top = rect.bottom + 6;
+        if (spaceBelow < menuHeight && rect.top > menuHeight) {
+          top = rect.top - menuHeight - 6;
+        }
+
+        setPos({
+          top: Math.max(10, Math.min(top, window.innerHeight - menuHeight - 10)),
+          right: Math.max(10, window.innerWidth - rect.right),
+        });
+      } else {
+        // Fallback: center-right but not stuck to bottom
+        setPos({ top: window.innerHeight / 2 - 140, right: 20 });
+      }
+    };
+
+    updatePos();
+    // Re-calculate on window resize
+    window.addEventListener('resize', updatePos);
+    return () => window.removeEventListener('resize', updatePos);
   }, [triggerRef]);
 
   useEffect(() => {
