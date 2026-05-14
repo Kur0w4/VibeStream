@@ -279,7 +279,11 @@ export const Search = () => {
                 </h1>
                 <p className="text-white/70 text-lg">Endless personalized music based on your taste. Updated daily.</p>
               </div>
-              <button className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10 shrink-0">
+              <button 
+                aria-label="Play Mix"
+                title="Play Mix"
+                className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10 shrink-0"
+              >
                 <Play className="w-8 h-8 fill-current ml-1" />
               </button>
             </div>
@@ -427,6 +431,8 @@ const HorizontalTrackCard = memo(({ track, results, activeDropdown, setActiveDro
         <button
           ref={getTriggerRef(track.id)}
           onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+          aria-label="More options"
+          title="More options"
           className="p-2 text-text-dim hover:text-white rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all touch-visible"
         >
           <MoreHorizontal className="w-5 h-5" />
@@ -481,6 +487,8 @@ const TrackCard = memo(({ track, results, activeDropdown, setActiveDropdown, get
           <button
             ref={getTriggerRef(track.id)}
             onClick={() => setActiveDropdown(activeDropdown === track.id ? null : track.id)}
+            aria-label="More options"
+            title="More options"
             className="p-1.5 text-text-dim hover:text-white rounded-lg transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 touch-visible"
           >
             <MoreHorizontal className="w-5 h-5" />
