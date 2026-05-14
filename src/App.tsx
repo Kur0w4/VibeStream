@@ -19,6 +19,8 @@ import { History } from './pages/History';
 import { Auth } from './pages/Auth';
 import { Settings } from './pages/Settings';
 import { OfflineTracks } from './pages/OfflineTracks';
+import { useEffect } from 'react';
+import { API_BASE_URL } from './store/usePlayerStore';
 
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-20 animate-in fade-in duration-500">
@@ -28,6 +30,15 @@ const PageLoader = () => (
 );
 
 export default function App() {
+  // Ngrok Warmup: Attempt to authorize the session with the skip-warning header
+  // This helps when opening the app on a new device.
+  useEffect(() => {
+    fetch(API_BASE_URL, {
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+      mode: 'no-cors'
+    }).catch(() => {});
+  }, []);
+
   return (
     <Router>
       <Layout>

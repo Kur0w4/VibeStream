@@ -201,7 +201,7 @@ const PlayerInner = () => {
           className={cn(
             'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-2xl z-[110]',
             isExpanded
-              ? 'top-0 left-0 right-0 h-[42vh] max-h-none rounded-none shadow-[0_24px_80px_rgba(0,0,0,0.65)] md:top-[8vh] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-[900px] md:max-h-[50vh] md:h-auto md:aspect-video md:rounded-3xl md:shadow-[0_0_100px_rgba(56,189,248,0.1)]'
+              ? 'top-0 left-0 right-0 h-[38vh] max-h-none rounded-none shadow-[0_24px_80px_rgba(0,0,0,0.65)] md:top-[6vh] md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-full md:max-w-[800px] md:max-h-[42vh] md:h-auto md:aspect-video md:rounded-3xl md:shadow-[0_0_100px_rgba(56,189,248,0.1)]'
               : 'bottom-[75px] left-2 w-[80px] h-[80px] rounded-xl md:bottom-[16px] md:left-[16px] md:w-[64px] md:h-[64px] md:rounded-lg md:cursor-pointer md:group'
           )}
         >
@@ -300,28 +300,28 @@ const PlayerInner = () => {
             <motion.div
               initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }} transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-              className="fixed inset-0 z-[100] bg-[#080c12] md:bg-bg-main/98 backdrop-blur-3xl flex flex-col overflow-hidden"
+              className="fixed inset-0 z-[100] bg-[#080c12] md:bg-bg-main/98 backdrop-blur-3xl flex flex-col overflow-y-auto custom-scrollbar scroll-smooth"
             >
               {/* Subtle ambient glow behind video */}
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050810] to-[#080c12] pointer-events-none z-0" />
 
               {/* ── Desktop: invisible spacer for the floating video container ── */}
               <div className="hidden md:flex w-full justify-center shrink-0">
-                <div className="w-full max-w-[900px] h-[8vh]" />
+                <div className="w-full max-w-[800px] h-[6vh]" />
               </div>
               <div className="hidden md:flex w-full justify-center shrink-0">
-                <div className="w-full max-w-[900px] aspect-video max-h-[50vh] invisible" />
+                <div className="w-full max-w-[800px] aspect-video max-h-[42vh] invisible" />
               </div>
 
-              {/* ── Mobile: spacer equal to the video height (42vh) ── */}
-              <div className="md:hidden shrink-0 h-[42vh]" />
+              {/* ── Mobile: spacer equal to the video height (38vh) ── */}
+              <div className="md:hidden shrink-0 h-[38vh]" />
 
               {/* ── Main content area (below video on both layouts) ── */}
-              <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full md:max-w-[900px] md:mx-auto md:mt-6 px-6 md:px-0">
+              <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full md:max-w-[800px] md:mx-auto md:mt-2 px-6 md:px-0">
 
                 {/* Track info: left-aligned on mobile (YT Music style), centered on desktop */}
-                <div className="shrink-0 mt-5 md:mt-0 mb-5 md:mb-6 md:text-center">
-                  <h2 className="text-[22px] md:text-3xl lg:text-5xl font-black text-white tracking-tight leading-tight truncate">
+                <div className="shrink-0 mt-5 md:mt-0 mb-4 md:mb-4 md:text-center">
+                  <h2 className="text-[20px] md:text-2xl lg:text-4xl font-black text-white tracking-tight leading-tight truncate">
                     {currentTrack.title}
                   </h2>
                   <p className="text-[15px] md:text-lg lg:text-2xl text-text-dim font-medium truncate mt-1">
@@ -330,38 +330,38 @@ const PlayerInner = () => {
                 </div>
 
                 {/* Download / Info Bar */}
-                <div className="shrink-0 flex items-center justify-between mb-8 md:max-w-2xl md:mx-auto w-full px-1">
+                <div className="shrink-0 flex items-center justify-between mb-4 md:mb-6 md:max-w-xl md:mx-auto w-full px-1">
                    <div className="flex items-center gap-6">
                       <button 
                         onClick={() => toggleDownload(currentTrack)}
                         className={cn(
-                          "flex flex-col items-center gap-1.5 transition-all active:scale-90",
+                          "flex flex-col items-center gap-1 transition-all active:scale-90",
                           downloadedIds.includes(currentTrack.videoId) ? "text-accent" : "text-text-dim hover:text-white"
                         )}
                       >
                         <div className={cn(
-                          "p-3 rounded-full bg-white/5 border border-white/10",
+                          "p-2.5 rounded-full bg-white/5 border border-white/10",
                           downloadingIds.includes(currentTrack.videoId) && "animate-pulse"
                         )}>
                           {downloadingIds.includes(currentTrack.videoId) ? (
-                            <Loader2 className="w-6 h-6 animate-spin" />
+                            <Loader2 className="w-5 h-5 animate-spin" />
                           ) : downloadedIds.includes(currentTrack.videoId) ? (
-                            <CheckCircle2 className="w-6 h-6" />
+                            <CheckCircle2 className="w-5 h-5" />
                           ) : (
-                            <ArrowDownCircle className="w-6 h-6" />
+                            <ArrowDownCircle className="w-5 h-5" />
                           )}
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-widest">
+                        <span className="text-[9px] font-black uppercase tracking-widest">
                           {downloadingIds.includes(currentTrack.videoId) ? 'Downloading' : 
                            downloadedIds.includes(currentTrack.videoId) ? 'Offline' : 'Download'}
                         </span>
                       </button>
 
-                      <button className="flex flex-col items-center gap-1.5 text-text-dim hover:text-white transition-all active:scale-90">
-                         <div className="p-3 rounded-full bg-white/5 border border-white/10">
-                            <ListMusic className="w-6 h-6" />
+                      <button className="flex flex-col items-center gap-1 text-text-dim hover:text-white transition-all active:scale-90">
+                         <div className="p-2.5 rounded-full bg-white/5 border border-white/10">
+                            <ListMusic className="w-5 h-5" />
                          </div>
-                         <span className="text-[10px] font-black uppercase tracking-widest">Add to Playlist</span>
+                         <span className="text-[9px] font-black uppercase tracking-widest">Add to Playlist</span>
                       </button>
                    </div>
                 </div>

@@ -869,12 +869,17 @@ async function startServer() {
           args: [req.userId]
         });
 
-        if (topArtistsRes.rows.length > 0) {
+        if (topArtistsRes.rows.length > 0 && globalYt) {
           const artistQueries = topArtistsRes.rows.slice(0, 3).map((a: any) => `${a.artist} popular official`);
-          const results = await Promise.allSettled(artistQueries.map(q => YouTube.search(q, { limit: 10, type: 'video' })));
+          const results = await Promise.allSettled(artistQueries.map(q => globalYt!.search(q, { type: 'video' })));
           results.forEach(r => { 
             if (r.status === 'fulfilled') {
-              const mapped = r.value.map(mapVideo).filter(Boolean);
+              const res = r.value as any;
+              const mapped = res.videos?.map((v: any) => ({
+                 id: v.id, videoId: v.id, title: v.title?.text || "Video",
+                 artist: v.author?.name || "Artist", thumbnail: v.thumbnails?.[0]?.url || "",
+                 duration: "4:00", url: `https://www.youtube.com/watch?v=${v.id}`
+              })) || [];
               personalized.push(...mapped);
             }
           });
@@ -993,23 +998,29 @@ async function startServer() {
           return res.json(artists.slice(0, 15));
         }
 
-        // Fallback Strategy: Search for videos and extract channel info if no direct channel found
-        console.log(`[Artist Search] Direct channel search returned 0 for "${q}", trying video search fallback...`);
-        const videoResults = await YouTube.search(q, { limit: 10, type: 'video' });
+        // Fallback Strategy: Search for videos using Innertube (more robust)
+        console.log(`[Artist Search] Direct channel search returned 0 for "${q}", trying video search fallback with Innertube...`);
+        const videoRes = await globalYt.search(q, { type: 'video' });
         const fallbackArtistsMap = new Map();
 
-        for (const v of videoResults) {
-          if (v.channel && v.channel.name && !fallbackArtistsMap.has(v.channel.name)) {
-            fallbackArtistsMap.set(v.channel.name, {
-              name: v.channel.name,
-              thumbnail: v.channel.iconURL() || ""
-            });
+        if (videoRes.videos) {
+          for (const v of videoRes.videos) {
+            const vAny = v as any;
+            const authorName = vAny.author?.name || vAny.short_byline?.text;
+            const authorThumb = vAny.author?.thumbnails?.[0]?.url || vAny.short_byline?.thumbnails?.[0]?.url || "";
+            
+            if (authorName && !fallbackArtistsMap.has(authorName)) {
+              fallbackArtistsMap.set(authorName, {
+                name: authorName,
+                thumbnail: authorThumb
+              });
+            }
           }
         }
 
         const fallbackArtists = Array.from(fallbackArtistsMap.values());
         if (fallbackArtists.length > 0) {
-          return res.json(fallbackArtists);
+          return res.json(fallbackArtists.slice(0, 10));
         }
       }
       
