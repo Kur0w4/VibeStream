@@ -11,6 +11,9 @@ import jwt from "jsonwebtoken";
 import cors from "cors";
 import { YouTube } from "youtube-sr";
 import ytdl from "@distube/ytdl-core";
+import { Innertube, UniversalCache } from 'youtubei.js';
+
+let globalYt: Innertube | null = null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -289,6 +292,12 @@ async function youtubeSearch(query: string, limit = 50, exact = false) {
 // ─── Server ────────────────────────────────────────────────────────────────────
 async function startServer() {
   console.log(`[System] Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
+  try {
+    globalYt = await Innertube.create({ cache: new UniversalCache(false) });
+    console.log("[System] youtubei.js Innertube initialized");
+  } catch (err) {
+    console.error("[System] Failed to initialize Innertube:", err);
+  }
   // Asegurar inicialización de DB antes de configurar el servidor
   try {
     await initDB();
@@ -941,118 +950,32 @@ async function startServer() {
     }
 
     try {
-      const ql = q.toLowerCase();
-      const seen = new Set<string>();
-      const artists: { name: string; thumbnail: string; score: number }[] = [];
-
-      // Artist Search Strategy 1: Direct channel search (youtube-sr)
-      let rawChannels: any[] = [];
-      try {
-        rawChannels = await YouTube.search(q, { limit: 15, type: 'channel' });
-      } catch (e) {
-        console.warn('[Artist Search] Direct channel search failed, trying Piped...');
-        try {
-          const searchInstances = [
-            'https://pipedapi.kavin.rocks',
-            'https://api.piped.projectsegfau.lt',
-            'https://pipedapi.moomoo.me',
-            'https://piped-api.garudalinux.org',
-            'https://pipedapi.mha.fi',
-            'https://pipedapi.lunar.icu',
-            'https://piped.adminforge.de',
-            'https://piped.yt.akoh.net',
-            'https://piped.nixnet.services',
-            'https://piped-api.tokyo.convo.casa'
-          ];
-          for (const inst of searchInstances) {
-            try {
-              const pipedRes = await fetch(`${inst}/search?q=${encodeURIComponent(q)}&filter=channels`, { signal: AbortSignal.timeout(3000) });
-              if (pipedRes.ok) {
-                const data = await pipedRes.json();
-                if (data.items && data.items.length > 0) {
-                  rawChannels = data.items.map((i: any) => ({
-                    name: i.name,
-                    icon: { url: i.thumbnail },
-                    id: i.url.split('/').pop()
-                  }));
-                  break;
-                }
-              }
-            } catch (e) { continue; }
+      if (globalYt) {
+        console.log(`[Artist Search] Using youtubei.js for: "${q}"`);
+        const searchRes = await globalYt.search(q, { type: 'channel' });
+        
+        const artists = searchRes.channels?.map((c: any) => {
+          // Extraer la mejor miniatura disponible
+          let thumb = "";
+          if (c.author?.thumbnails && c.author.thumbnails.length > 0) {
+            // Tomar la de mayor resolución (usualmente la última)
+            thumb = c.author.thumbnails[c.author.thumbnails.length - 1].url;
           }
-        } catch (pe) {}
-      }
 
-      // Artist Search Strategy 2: Video search + unique channel extraction (Reliable fallback)
-      if (rawChannels.length < 3) {
-        try {
-          console.log('[Artist Search] Using video-based channel extraction fallback...');
-          const videoResults = await YouTube.search(q, { limit: 20, type: 'video' });
-          const seenIds = new Set(rawChannels.map(c => c.id || c.name));
-          
-          for (const v of videoResults) {
-            if (v.channel && v.channel.id && !seenIds.has(v.channel.id)) {
-              seenIds.add(v.channel.id);
-              rawChannels.push({
-                id: v.channel.id,
-                name: v.channel.name,
-                icon: v.channel.icon
-              });
-            }
-          }
-        } catch (e) {
-          console.error('[Artist Search] Video fallback failed:', e);
+          return {
+            name: c.author?.name || c.title || "",
+            thumbnail: thumb
+          };
+        }).filter((a: any) => a.name) || [];
+        
+        if (artists.length > 0) {
+          res.set('Cache-Control', 'public, max-age=300');
+          return res.json(artists.slice(0, 15));
         }
       }
-
-      for (const ch of rawChannels) {
-        let name = ch.name || ch.title || '';
-        if (!name) continue;
-        if (name.toLowerCase().endsWith(' - topic')) name = name.slice(0, -8);
-        const nameLower = name.toLowerCase();
-        if (seen.has(nameLower)) continue;
-        seen.add(nameLower);
-        const thumb = ch.icon?.url || ch.thumbnail?.url || ch.snippet?.thumbnails?.high?.url || '';
-        let score = 0;
-        if (nameLower === ql) score = 200;
-        else if (nameLower.startsWith(ql)) score = 100;
-        else if (nameLower.includes(ql)) score = 50;
-        else score = 1;
-        artists.push({ name: name.trim(), thumbnail: thumb, score });
-      }
-
-      // Supplement with video channel names if we have few results
-      if (artists.length < 8) {
-        const [topicResults, officialResults] = await Promise.allSettled([
-          YouTube.search(`${q} - Topic`, { limit: 10, type: 'video' }),
-          YouTube.search(`${q} official music`, { limit: 10, type: 'video' }),
-        ]);
-        const videoResults = [
-          ...(topicResults.status === 'fulfilled' ? topicResults.value : []),
-          ...(officialResults.status === 'fulfilled' ? officialResults.value : []),
-        ];
-        for (const v of videoResults) {
-          let name = v.channel?.name || '';
-          if (!name) continue;
-          if (name.toLowerCase().endsWith(' - topic')) name = name.slice(0, -8);
-          if (name.toLowerCase().endsWith('vevo')) name = name.slice(0, -4).trim();
-          const nameLower = name.toLowerCase();
-          if (seen.has(nameLower)) continue;
-          seen.add(nameLower);
-          const thumb = v.channel?.icon?.url || v.thumbnail?.url || '';
-          let score = 0;
-          if (nameLower === ql) score = 180;
-          else if (nameLower.startsWith(ql)) score = 80;
-          else if (nameLower.includes(ql)) score = 30;
-          else score = 0;
-          if (score > 0) artists.push({ name: name.trim(), thumbnail: thumb, score });
-        }
-      }
-
-      artists.sort((a, b) => b.score - a.score);
-      const top = artists.slice(0, 15);
-      res.set('Cache-Control', 'public, max-age=300');
-      res.json(top.map(({ name, thumbnail }) => ({ name, thumbnail })));
+      
+      console.warn('[Artist Search] youtubei.js returned 0 results or is not initialized.');
+      res.json([]);
     } catch (e) {
       console.error("[Server] Artist search error:", e);
       res.status(500).json({ error: "Search failed" });
@@ -1166,11 +1089,13 @@ async function startServer() {
       console.log(`[Stream] Trying Piped API fallback for ${videoId}...`);
       const pipedInstances = [
         'https://pipedapi.kavin.rocks',
-        'https://api.piped.projectsegfau.lt',
         'https://pipedapi.moomoo.me',
-        'https://piped-api.garudalinux.org',
+        'https://api.piped.projectsegfau.lt',
+        'https://piped.video',
+        'https://piped.tokhmi.xyz',
+        'https://piped.privacydev.net',
+        'https://piped-api.tokyo.convo.casa',
         'https://pipedapi.mha.fi',
-        'https://pipedapi.lunar.icu',
         'https://pipedapi.us.to',
         'https://pipedapi.adminforge.de'
       ];
