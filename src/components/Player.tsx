@@ -5,7 +5,7 @@ import {
   Download, CheckCircle2, Loader2, ArrowDownCircle
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
-import { usePlayerStore, API_BASE_URL } from '../store/usePlayerStore';
+import { usePlayerStore, getApiUrl } from '../store/usePlayerStore';
 import { offlineService } from '../lib/offlineService';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -48,7 +48,7 @@ const prefetchTrackStream = async (videoId: string) => {
   prefetchedStreamIds.add(videoId);
 
   try {
-    await fetch(`${API_BASE_URL}/api/stream/${videoId}?prefetch=1`, {
+    await fetch(`${getApiUrl()}/api/stream/${videoId}?prefetch=1`, {
       headers: NGROK_HEADERS,
     });
   } catch (error) {
@@ -58,7 +58,7 @@ const prefetchTrackStream = async (videoId: string) => {
 };
 
 const NextTrackPrefetcher = memo(({ videoId }: { videoId: string }) => {
-  const url = `${API_BASE_URL}/api/stream/${videoId}${isNativePlatform ? '?native=1' : ''}`;
+  const url = `${getApiUrl()}/api/stream/${videoId}${isNativePlatform ? '?native=1' : ''}`;
   return <audio key={videoId} preload="auto" src={url} className="hidden" muted />;
 });
 
@@ -253,7 +253,7 @@ const PlayerInner = () => {
 
     const track = currentTrack;
     const originalUrl = track
-      ? `${API_BASE_URL}/api/stream/${track.videoId}${isNativePlatform ? '?native=1' : ''}`
+      ? `${getApiUrl()}/api/stream/${track.videoId}${isNativePlatform ? '?native=1' : ''}`
       : '';
     const canTryNgrokFallback =
       !!track &&

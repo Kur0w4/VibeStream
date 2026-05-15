@@ -3,7 +3,7 @@
  * Maneja automáticamente los tokens JWT y la configuración de producción.
  */
 
-import { API_BASE_URL } from '../store/usePlayerStore';
+import { getApiUrl } from '../store/usePlayerStore';
 
 let _authInstance: any = null;
 async function getAuth() {
@@ -44,7 +44,7 @@ export async function apiClient<T = any>(url: string, opts?: RequestInit): Promi
   }
 
   // Asegurar que la URL sea absoluta si empieza por /
-  const finalUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+  const finalUrl = url.startsWith('/') ? `${getApiUrl()}${url}` : url;
   
   // No usar credentials: 'include' con JWT en headers para evitar conflictos de CORS
   const fetchOpts: RequestInit = { 

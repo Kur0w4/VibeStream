@@ -103,15 +103,29 @@ interface PlayerState {
   toggleDownload: (track: Track) => Promise<void>;
   enqueueTrackDownloads: (tracks: Track[]) => void;
   downloadPlaylist: (tracks: Track[]) => void;
+  
+  // Server Config
+  serverUrl: string;
+  setServerUrl: (url: string) => void;
 }
 
 // ─── API configuration ────────────────────────────────────────────────────────
 // The API URL must point to your backend server (e.g., Render for production, or your local IP for testing Capacitor).
 // For the deployed Firebase web app, it MUST point to the Render backend.
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Dynamic API URL Helper
+export const getApiUrl = () => {
+  const custom = localStorage.getItem('player-storage');
+  if (custom) {
+    try {
+      const parsed = JSON.parse(custom);
+      if (parsed.state?.serverUrl) return parsed.state.serverUrl;
+    } catch {}
+  }
+  return import.meta.env.VITE_API_BASE_URL || '';
+};
 
 const fetchTrackBlob = async (track: Track): Promise<Blob> => {
-  const streamUrl = `${API_BASE_URL}/api/stream/${track.videoId}`;
+  const streamUrl = `${getApiUrl()}/api/stream/${track.videoId}`;
   const response = await fetch(streamUrl, { headers: NGROK_HEADERS });
   if (!response.ok) throw new Error('Failed to fetch stream');
   return response.blob();
@@ -221,6 +235,8 @@ export const usePlayerStore = create<PlayerState>()(
       downloadedIds: [] as string[],
       downloadingIds: [] as string[],
       queuedDownloadIds: [] as string[],
+      serverUrl: import.meta.env.VITE_API_BASE_URL || '',
+      setServerUrl: (url: string) => set({ serverUrl: url }),
 
       // ── Player ──────────────────────────────────────────────────────────────────
       playTrack: (track, context) => {

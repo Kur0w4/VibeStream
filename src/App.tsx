@@ -20,7 +20,7 @@ import { Auth } from './pages/Auth';
 import { Settings } from './pages/Settings';
 import { OfflineTracks } from './pages/OfflineTracks';
 import { useEffect } from 'react';
-import { API_BASE_URL } from './store/usePlayerStore';
+import { getApiUrl } from './store/usePlayerStore';
 import { Capacitor } from '@capacitor/core';
 
 const PageLoader = () => (
@@ -35,7 +35,7 @@ export default function App() {
   // This helps when opening the app on a new device.
   useEffect(() => {
     // Basic connectivity check
-    fetch(`${API_BASE_URL}/api/health`).catch(() => {});
+    fetch(`${getApiUrl()}/api/health`).catch(() => {});
   }, []);
 
   return (

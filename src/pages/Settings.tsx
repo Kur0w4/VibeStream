@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const Settings = () => {
-  const { user, updateUsername, logout } = usePlayerStore();
+  const { user, updateUsername, logout, serverUrl, setServerUrl } = usePlayerStore();
   const navigate = useNavigate();
   
   const [editingUsername, setEditingUsername] = useState(false);
@@ -132,6 +132,52 @@ export const Settings = () => {
                 {successMsg && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-400 text-xs font-bold">{successMsg}</motion.p>}
               </AnimatePresence>
             </div>
+          </div>
+        </section>
+
+        {/* Network & Server Configuration */}
+        <section className="bg-white/5 border border-white/10 rounded-[24px] p-6 md:p-8">
+           <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+            <SettingsIcon className="w-5 h-5 text-text-dim" /> Server Configuration
+          </h2>
+          
+          <div className="space-y-4">
+             <div className="p-5 bg-black/20 rounded-2xl border border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="font-bold text-white text-sm">Server API URL</p>
+                    <p className="text-xs text-text-dim mt-1">Direct the app to your Cloudflare/Ngrok backend</p>
+                  </div>
+                  <div className="px-3 py-1 bg-accent/10 rounded-lg">
+                    <span className="text-[10px] font-black text-accent uppercase tracking-wider">Dynamic</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input 
+                      type="text" 
+                      value={serverUrl}
+                      onChange={(e) => setServerUrl(e.target.value)}
+                      placeholder="https://your-tunnel.trycloudflare.com"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-accent transition-all"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setSuccessMsg('Server URL saved! Restarting connection...');
+                      setTimeout(() => window.location.reload(), 1500);
+                    }}
+                    className="px-6 py-3 bg-accent text-black font-bold text-sm rounded-xl hover:opacity-90 transition-all shadow-lg shadow-accent/10 whitespace-nowrap"
+                  >
+                    Save & Apply
+                  </button>
+                </div>
+                
+                <p className="mt-4 text-[10px] text-text-dim leading-relaxed">
+                  <span className="text-accent font-bold">Pro Tip:</span> If you change your tunnel (Cloudflare/Ngrok), just paste the new URL here and click save. You won't need to rebuild the APK!
+                </p>
+             </div>
           </div>
         </section>
 
