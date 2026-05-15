@@ -1587,6 +1587,99 @@ async function startServer() {
     }
   });
 
+  // ── Dedicated Download Endpoint ──────────────────────────────────────────────
+  // Optimised for full-file download to the client with progress tracking.
+  // Key differences from /api/stream:
+  //   1. No AbortSignal timeout — large audio files must fully transfer.
+  //   2. Always forwards Content-Length so the client can compute progress %.
+  //   3. Saves to disk cache while streaming (avoids re-downloading on repeat).
+  app.get("/api/download/:videoId", async (req: any, res: any) => {
+    const videoId = req.params.videoId;
+    const preferMp4 = req.query.native === '1';
+    console.log(`[Download] Request for: ${videoId}`);
+
+    try {
+      const extracted = await extractAudioUrl(videoId, { preferMp4 });
+
+      if (!extracted) {
+        return res.status(404).json({ error: 'No se pudo extraer el audio para descarga.' });
+      }
+
+      const { url: audioUrl, contentType } = extracted;
+      const cacheExt = contentType.includes('mp4') ? 'm4a' : 'webm';
+      const cacheDir = path.join(__dirname, 'audio_cache');
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+      const cachePath = path.join(cacheDir, `${videoId}.${cacheExt}`);
+
+      // Serve from disk cache if available (always has Content-Length for progress)
+      if (fs.existsSync(cachePath)) {
+        console.log(`[Download] ✓ Serving from Disk Cache: ${videoId}`);
+        const stats = fs.statSync(cachePath);
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Length', stats.size);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Length');
+        res.status(200);
+        fs.createReadStream(cachePath).pipe(res);
+        return;
+      }
+
+      // Fetch from YouTube — NO AbortSignal so full audio file downloads
+      const fetchHeaders: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+      };
+
+      const audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
+
+      if (!audioResponse.ok) {
+        streamUrlCache.delete(`${videoId}:${preferMp4 ? 'mp4' : 'default'}`);
+        return res.status(502).json({ error: 'Error al obtener el audio de YouTube para descarga.' });
+      }
+
+      const contentLength = audioResponse.headers.get('content-length');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length');
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+      res.status(200);
+
+      if (audioResponse.body) {
+        const { Readable } = await import('stream');
+        const nodeStream = Readable.fromWeb(audioResponse.body as any);
+        const fileStream = fs.createWriteStream(cachePath);
+
+        // Tee: stream to client AND save to disk simultaneously
+        nodeStream.on('data', (chunk: Buffer) => {
+          fileStream.write(chunk);
+          res.write(chunk);
+        });
+        nodeStream.on('end', () => {
+          fileStream.end();
+          res.end();
+          console.log(`[Download] ✓ Complete + cached to disk: ${videoId}`);
+        });
+        nodeStream.on('error', (err: Error) => {
+          console.error(`[Download Error] ${videoId}:`, err.message);
+          fileStream.destroy();
+          if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+          if (!res.headersSent) res.status(500).end();
+          else res.end();
+        });
+        req.on('close', () => nodeStream.destroy());
+      } else {
+        res.status(500).json({ error: 'No response body from YouTube' });
+      }
+    } catch (error: any) {
+      console.error(`[Download Error] ${videoId}:`, error?.message || error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error interno al procesar la descarga.' });
+      }
+    }
+  });
+
   // ── Vite / Dev Server ───────────────────────────────────────────────────────
   if (process.env.NODE_ENV !== "production") {
     console.log("[System] Initializing Vite Dev Server...");

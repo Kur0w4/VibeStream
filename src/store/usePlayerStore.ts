@@ -53,6 +53,7 @@ interface PlayerState {
   downloadedIds: string[]; // List of videoIds
   downloadingIds: string[]; // List of videoIds currently being downloaded
   queuedDownloadIds: string[]; // List of videoIds queued for background download
+  downloadProgress: Record<string, number>; // videoId -> 0..1 download fraction
 
   // Player actions
   playTrack: (track: Track, context?: Track[]) => void;
@@ -98,13 +99,14 @@ interface PlayerState {
   toggleDownload: (track: Track) => Promise<void>;
   enqueueTrackDownloads: (tracks: Track[]) => void;
   downloadPlaylist: (tracks: Track[]) => void;
+  setDownloadProgress: (videoId: string, pct: number) => void;
   
   // Server Config
   serverUrl: string;
   setServerUrl: (url: string) => void;
 }
 
-// ─── API configuration ────────────────────────────────────────────────────────
+// â”€â”€â”€ API configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The API URL must point to your backend server (e.g., Render for production, or your local IP for testing Capacitor).
 // For the deployed Firebase web app, it MUST point to the Render backend.
 // Dynamic API URL Helper
@@ -119,11 +121,37 @@ export const getApiUrl = () => {
   return import.meta.env.VITE_API_BASE_URL || '';
 };
 
-const fetchTrackBlob = async (track: Track): Promise<Blob> => {
-  const streamUrl = `${getApiUrl()}/api/stream/${track.videoId}`;
-  const response = await fetch(streamUrl);
-  if (!response.ok) throw new Error('Failed to fetch stream');
-  return response.blob();
+const fetchTrackBlob = async (
+  track: Track,
+  onProgress?: (pct: number) => void
+): Promise<Blob> => {
+  const downloadUrl = `${getApiUrl()}/api/download/${track.videoId}`;
+  const response = await fetch(downloadUrl);
+  if (!response.ok) throw new Error(`Failed to fetch download: ${response.status}`);
+
+  const contentLength = response.headers.get('content-length');
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+  if (!response.body) return response.blob();
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    receivedBytes += value.length;
+    if (totalBytes > 0 && onProgress) {
+      onProgress(Math.min(receivedBytes / totalBytes, 1));
+    }
+  }
+
+  const allChunks = new Uint8Array(receivedBytes);
+  let pos = 0;
+  for (const chunk of chunks) { allChunks.set(chunk, pos); pos += chunk.length; }
+  return new Blob([allChunks]);
 };
 
 const syncQueuedDownloadIds = (set: (partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>)) => void) => {
@@ -154,7 +182,9 @@ const processDownloadQueue = async (
     set((s) => ({ downloadingIds: [...s.downloadingIds, track.videoId] }));
 
     try {
-      const blob = await fetchTrackBlob(track);
+      const blob = await fetchTrackBlob(track, (pct) => {
+        set((s) => ({ downloadProgress: { ...s.downloadProgress, [track.videoId]: pct } }));
+      });
       await offlineService.saveTrack({
         videoId: track.videoId,
         blob,
@@ -176,10 +206,15 @@ const processDownloadQueue = async (
       console.error('[Offline] Background download failed:', error);
     } finally {
       queuedDownloadIds.delete(track.videoId);
-      set((s) => ({
-        downloadingIds: s.downloadingIds.filter((id) => id !== track.videoId),
-        queuedDownloadIds: Array.from(queuedDownloadIds),
-      }));
+      set((s) => {
+        const newProg = { ...s.downloadProgress };
+        delete newProg[track.videoId];
+        return {
+          downloadingIds: s.downloadingIds.filter((id) => id !== track.videoId),
+          queuedDownloadIds: Array.from(queuedDownloadIds),
+          downloadProgress: newProg,
+        };
+      });
     }
   }
 
@@ -230,10 +265,11 @@ export const usePlayerStore = create<PlayerState>()(
       downloadedIds: [] as string[],
       downloadingIds: [] as string[],
       queuedDownloadIds: [] as string[],
+      downloadProgress: {} as Record<string, number>,
       serverUrl: import.meta.env.VITE_API_BASE_URL || '',
       setServerUrl: (url: string) => set({ serverUrl: url }),
 
-      // ── Player ──────────────────────────────────────────────────────────────────
+      // â”€â”€ Player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       playTrack: (track, context) => {
         let updates: any = { currentTrack: track, isPlaying: true, progress: 0 };
         if (context) {
@@ -253,10 +289,10 @@ export const usePlayerStore = create<PlayerState>()(
       setDuration: (duration) => set({ duration }),
       setIsExpanded: (isExpanded) => set({ isExpanded }),
 
-      // ── Queue ────────────────────────────────────────────────────────────────
+      // â”€â”€ Queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       addToQueue: (track) =>
         set((s) => {
-          // Don’t add duplicates
+          // Donâ€™t add duplicates
           if (s.queue.some((t) => t.id === track.id)) return s;
           return { queue: [...s.queue, track] };
         }),
@@ -350,7 +386,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      // ── Auth ─────────────────────────────────────────────────────────────────
+      // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       login: (userData: any) => {
         // userData can be { user, token }
         const { user, token } = userData;
@@ -470,7 +506,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      // ── Playlists ────────────────────────────────────────────────────────────
+      // â”€â”€ Playlists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       createPlaylist: async (name) => {
         const { user, playlists } = get();
         if (user) {
@@ -514,7 +550,7 @@ export const usePlayerStore = create<PlayerState>()(
         }));
       },
 
-      // ── Liked Songs ──────────────────────────────────────────────────────────
+      // â”€â”€ Liked Songs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       toggleLike: async (track) => {
         const { user, likedSongs } = get();
         const isLiked = likedSongs.some((t) => t.id === track.id);
@@ -529,7 +565,7 @@ export const usePlayerStore = create<PlayerState>()(
         }));
       },
 
-      // ── Artists ──────────────────────────────────────────────────────────────
+      // â”€â”€ Artists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       followArtist: async (artist) => {
         const { user } = get();
         if (user) {
@@ -546,7 +582,7 @@ export const usePlayerStore = create<PlayerState>()(
         set((s) => ({ followedArtists: s.followedArtists.filter((a) => a.name !== name) }));
       },
 
-      // ── History ──────────────────────────────────────────────────────────────
+      // â”€â”€ History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       addToHistory: async (track) => {
         try {
           const hasAuth = !!get().user || !!localStorage.getItem('vibestream_token');
@@ -556,7 +592,7 @@ export const usePlayerStore = create<PlayerState>()(
         } catch {}
       },
       
-      // ── Offline Actions ──────────────────────────────────────────────────────
+      // â”€â”€ Offline Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       initOffline: async () => {
         const ids = await offlineService.getAllDownloadedIds();
         set({ downloadedIds: ids });
@@ -596,6 +632,10 @@ export const usePlayerStore = create<PlayerState>()(
 
       downloadPlaylist: (tracks) => {
         queueTracksForDownload(tracks, get, set);
+      },
+
+      setDownloadProgress: (videoId: string, pct: number) => {
+        set((s) => ({ downloadProgress: { ...s.downloadProgress, [videoId]: pct } }));
       },
     }),
     {

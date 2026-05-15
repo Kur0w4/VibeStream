@@ -10,7 +10,7 @@ import { offlineService } from '../lib/offlineService';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Pure Helpers (defined outside component to avoid recreation on each render) ─
+// â”€â”€â”€ Pure Helpers (defined outside component to avoid recreation on each render) â”€
 
 const formatTime = (seconds: number): string => {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
@@ -21,6 +21,8 @@ const formatTime = (seconds: number): string => {
 
 const isNativePlatform = Capacitor.isNativePlatform();
 const nativeStreamTimeoutMs = 15000;
+export const NGROK_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+const usesNgrokBackend = getApiUrl().includes('ngrok');
 
 const stopAudioElement = (audio: HTMLAudioElement | null) => {
   if (!audio) return;
@@ -86,10 +88,10 @@ const PlayerInner = () => {
   const fallbackControllerRef = useRef<AbortController | null>(null);
   const fallbackAttemptedRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-  const { downloadedIds, downloadingIds, queuedDownloadIds, toggleDownload } = usePlayerStore();
+  const { downloadedIds, downloadingIds, queuedDownloadIds, toggleDownload, downloadProgress } = usePlayerStore();
 
-  // ─── Offline Storage Handling ──────────────────────────────────────────────
-  // ─── Ngrok Bypass / Streaming URL Handling ────────────────────────────────
+  // â”€â”€â”€ Offline Storage Handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€â”€ Ngrok Bypass / Streaming URL Handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [streamUrl, setStreamUrl] = useState<string>('');
 
   useEffect(() => {
@@ -189,7 +191,7 @@ const PlayerInner = () => {
     audio.load();
   }, [streamUrl]);
 
-  // ─── Native Audio Handlers ──────────────────────────────────────────────────
+  // â”€â”€â”€ Native Audio Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   
   useEffect(() => {
     if (!currentTrack) return;
@@ -283,7 +285,7 @@ const PlayerInner = () => {
     }
   }, [isReady, progress]);
 
-  // ─── Media Session API ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Media Session API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack) return;
     navigator.mediaSession.metadata = new window.MediaMetadata({
@@ -366,7 +368,7 @@ const PlayerInner = () => {
       />
       <div className="pointer-events-auto">
 
-        {/* ══ YouTube Player container (Video square / MV Mode) ══ */}
+        {/* â•â• YouTube Player container (Video square / MV Mode) â•â• */}
         <div
           className={cn(
             'fixed overflow-hidden bg-black transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-2xl z-[110]',
@@ -375,7 +377,7 @@ const PlayerInner = () => {
               : 'bottom-[75px] left-2 w-[80px] h-[80px] rounded-xl md:bottom-[16px] md:left-[16px] md:w-[64px] md:h-[64px] md:rounded-lg md:cursor-pointer md:group'
           )}
         >
-          {/* Mobile mini: transparent overlay to intercept YT-iframe clicks → open MV */}
+          {/* Mobile mini: transparent overlay to intercept YT-iframe clicks â†’ open MV */}
           {!isExpanded && (
             <div
               className="absolute inset-0 z-[15] md:hidden cursor-pointer"
@@ -426,7 +428,7 @@ const PlayerInner = () => {
           </div>
         </div>
 
-        {/* ══ Mobile Mini Control Bar (sits right of the video square) ══ */}
+        {/* â•â• Mobile Mini Control Bar (sits right of the video square) â•â• */}
         <AnimatePresence>
           {!isExpanded && currentTrack && (
             <motion.div
@@ -452,7 +454,7 @@ const PlayerInner = () => {
           )}
         </AnimatePresence>
 
-        {/* ══ MV Close Button ══ */}
+        {/* â•â• MV Close Button â•â• */}
         <AnimatePresence>
           {isExpanded && currentTrack && (
             <motion.button 
@@ -464,7 +466,7 @@ const PlayerInner = () => {
           )}
         </AnimatePresence>
 
-        {/* ══ Expanded view overlay (MV Mode — YouTube Music style) ══ */}
+        {/* â•â• Expanded view overlay (MV Mode â€” YouTube Music style) â•â• */}
         <AnimatePresence>
           {isExpanded && currentTrack && (
             <motion.div
@@ -475,7 +477,7 @@ const PlayerInner = () => {
               {/* Subtle ambient glow behind video */}
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050810] to-[#080c12] pointer-events-none z-0" />
 
-              {/* ── Desktop: invisible spacer for the floating video container ── */}
+              {/* â”€â”€ Desktop: invisible spacer for the floating video container â”€â”€ */}
               <div className="hidden md:flex w-full justify-center shrink-0">
                 <div className="w-full max-w-[800px] h-[6vh]" />
               </div>
@@ -483,10 +485,10 @@ const PlayerInner = () => {
                 <div className="w-full max-w-[800px] aspect-video max-h-[42vh] invisible" />
               </div>
 
-              {/* ── Mobile: spacer equal to the video height (38vh) ── */}
+              {/* â”€â”€ Mobile: spacer equal to the video height (38vh) â”€â”€ */}
               <div className="md:hidden shrink-0 h-[38vh]" />
 
-              {/* ── Main content area (below video on both layouts) ── */}
+              {/* â”€â”€ Main content area (below video on both layouts) â”€â”€ */}
               <div className="flex-1 flex flex-col min-h-0 relative z-10 w-full md:max-w-[800px] md:mx-auto md:mt-2 px-6 md:px-0">
 
                 {/* Track info: left-aligned on mobile (YT Music style), centered on desktop */}
@@ -509,17 +511,36 @@ const PlayerInner = () => {
                           downloadedIds.includes(currentTrack.videoId) ? "text-accent" : "text-text-dim hover:text-white"
                         )}
                       >
-                        <div className={cn(
-                          "p-2.5 rounded-full bg-white/5 border border-white/10",
-                          (downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId)) && "animate-pulse"
-                        )}>
-                          {downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId) ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : downloadedIds.includes(currentTrack.videoId) ? (
-                            <CheckCircle2 className="w-5 h-5" />
-                          ) : (
-                            <ArrowDownCircle className="w-5 h-5" />
-                          )}
+                        <div className="relative w-11 h-11">
+                          {/* Circular SVG progress ring */}
+                          {(downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId)) && (() => {
+                            const pct = downloadProgress[currentTrack.videoId] ?? 0;
+                            const r = 19;
+                            const circ = 2 * Math.PI * r;
+                            return (
+                              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                                <circle cx="22" cy="22" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2.5" />
+                                <circle cx="22" cy="22" r={r} fill="none" stroke="rgb(34,211,238)" strokeWidth="2.5"
+                                  strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+                                  style={{ transition: 'stroke-dashoffset 0.3s ease' }} />
+                              </svg>
+                            );
+                          })()}
+                          {/* Icon / percentage in center */}
+                          <div className={cn(
+                            "absolute inset-1 rounded-full bg-white/5 border border-white/10 flex items-center justify-center",
+                            (downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId)) && "border-transparent bg-transparent"
+                          )}>
+                            {downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId) ? (
+                              <span className="text-[10px] font-black text-accent tabular-nums">
+                                {Math.round((downloadProgress[currentTrack.videoId] ?? 0) * 100)}%
+                              </span>
+                            ) : downloadedIds.includes(currentTrack.videoId) ? (
+                              <CheckCircle2 className="w-5 h-5" />
+                            ) : (
+                              <ArrowDownCircle className="w-5 h-5" />
+                            )}
+                          </div>
                         </div>
                         <span className="text-[9px] font-black uppercase tracking-widest">
                           {downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId) ? 'Downloading' : 
@@ -570,7 +591,7 @@ const PlayerInner = () => {
                   </button>
                 </div>
 
-                {/* ── Bottom tabs (YT Music style) ── */}
+                {/* â”€â”€ Bottom tabs (YT Music style) â”€â”€ */}
                 <div className="shrink-0 border-t border-white/8 mt-auto pb-[env(safe-area-inset-bottom)]">
                   <div className="flex items-stretch h-14">
                     <button
@@ -607,7 +628,7 @@ const PlayerInner = () => {
           )}
         </AnimatePresence>
 
-        {/* ══ Queue slide-out panel ══ */}
+        {/* â•â• Queue slide-out panel â•â• */}
         <AnimatePresence>
           {showQueue && !isExpanded && (
             <motion.div
@@ -659,7 +680,7 @@ const PlayerInner = () => {
           )}
         </AnimatePresence>
 
-        {/* ══ Footer player bar (Desktop YT Music Style) ══ */}
+        {/* â•â• Footer player bar (Desktop YT Music Style) â•â• */}
         <div className={cn(
           'fixed bottom-0 left-0 right-0 h-[96px] bg-[#03060c] border-t border-white/5 hidden md:flex items-center justify-between z-[60] transition-transform duration-500',
           (isExpanded || !currentTrack) ? 'translate-y-full' : 'translate-y-0'
@@ -741,10 +762,10 @@ const PlayerInner = () => {
   );
 };
 
-/** Memoized Player — prevents re-renders on route/parent changes */
+/** Memoized Player â€” prevents re-renders on route/parent changes */
 export const Player = memo(PlayerInner);
 
-// ─── Sub-components for Optimization ───────────────────────────────────────
+// â”€â”€â”€ Sub-components for Optimization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** 
  * Time display that only re-renders on progress/duration changes.
@@ -814,3 +835,4 @@ const PlaybackProgress = ({
     </>
   );
 };
+
