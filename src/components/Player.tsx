@@ -57,6 +57,11 @@ const prefetchTrackStream = async (videoId: string) => {
   }
 };
 
+const NextTrackPrefetcher = memo(({ videoId }: { videoId: string }) => {
+  const url = `${API_BASE_URL}/api/stream/${videoId}${isNativePlatform ? '?native=1' : ''}`;
+  return <audio key={videoId} preload="auto" src={url} className="hidden" muted />;
+});
+
 const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = nativeStreamTimeoutMs) => {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -785,6 +790,13 @@ const PlayerInner = () => {
           </div>
         </div>
 
+      </div>
+      {/* Hidden Prefetcher for Gapless Playback */}
+      <div className="hidden pointer-events-none w-0 h-0 overflow-hidden">
+        {queue.length > 0 && <NextTrackPrefetcher videoId={queue[0].videoId} />}
+        {queue.length === 0 && playbackContext && contextIndex < (playbackContext?.length || 0) - 1 && (
+           <NextTrackPrefetcher videoId={playbackContext[contextIndex + 1].videoId} />
+        )}
       </div>
     </div>
   );

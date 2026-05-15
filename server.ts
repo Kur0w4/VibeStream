@@ -14,6 +14,14 @@ import ytdl from "@distube/ytdl-core";
 import { Innertube, UniversalCache } from 'youtubei.js';
 import fs from 'fs';
 
+process.on('uncaughtException', (err) => {
+  console.error('[Fatal] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Fatal] Unhandled Rejection:', reason);
+});
+
 let globalYt: Innertube | null = null;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1230,8 +1238,31 @@ async function startServer() {
 
   // URL cache to avoid re-extracting frequently requested tracks
   const streamUrlCache = new Map<string, { url: string; contentType: string; expiresAt: number }>();
-  const STREAM_FETCH_TIMEOUT_MS = 15000;
-  const EXTRACTION_TIMEOUT_MS = 20000;
+  const STREAM_FETCH_TIMEOUT_MS = 20000;
+  const EXTRACTION_TIMEOUT_MS = 15000;
+
+  // Cleanup old cache files every hour
+  setInterval(() => {
+    try {
+      const cacheDir = path.join(__dirname, 'audio_cache');
+      if (!fs.existsSync(cacheDir)) return;
+      
+      const files = fs.readdirSync(cacheDir);
+      const now = Date.now();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+      
+      files.forEach(file => {
+        const filePath = path.join(cacheDir, file);
+        const stats = fs.statSync(filePath);
+        if (now - stats.mtimeMs > maxAge) {
+          fs.unlinkSync(filePath);
+          console.log(`[Cache] Deleted old file: ${file}`);
+        }
+      });
+    } catch (e) {
+      console.error('[Cache] Cleanup error:', e);
+    }
+  }, 60 * 60 * 1000);
 
   async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -1401,7 +1432,7 @@ async function startServer() {
       ];
       for (const inst of invidInstances) {
         try {
-          const res = await fetch(`${inst}/api/v1/videos/${videoId}`, { signal: AbortSignal.timeout(4000) });
+          const res = await fetch(`${inst}/api/v1/videos/${videoId}`, { signal: AbortSignal.timeout(3000) });
           if (!res.ok) continue;
           const data = await res.json();
           if (data.adaptiveFormats) {
@@ -1438,28 +1469,66 @@ async function startServer() {
       }
 
         const { url: audioUrl, contentType } = extracted;
+        const cacheExt = contentType.includes('mp4') ? 'm4a' : 'webm';
+        const cachePath = path.join(__dirname, 'audio_cache', `${videoId}.${cacheExt}`);
+
         if (isPrefetch) {
+          if (fs.existsSync(cachePath)) {
+            return res.json({ ok: true, cached: true, contentType });
+          }
+
+          console.log(`[Stream] Pre-downloading ${videoId} to disk cache...`);
           try {
-            const warmupResponse = await fetch(audioUrl, {
+            const downloadRes = await fetch(audioUrl, {
               headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept-Language': 'en-US,en;q=0.9',
                 'Referer': 'https://www.youtube.com/',
-                'Origin': 'https://www.youtube.com',
-                'Range': 'bytes=0-65535',
               },
+              signal: AbortSignal.timeout(60000) // Give it a minute to download in bg
             });
 
-            if (warmupResponse.body) {
-              const reader = warmupResponse.body.getReader();
-              await reader.read().catch(() => {});
-              await reader.cancel().catch(() => {});
+            if (downloadRes.body) {
+              const { Readable } = await import('stream');
+              const { pipeline } = await import('stream/promises');
+              const fileStream = fs.createWriteStream(cachePath);
+              const nodeStream = Readable.fromWeb(downloadRes.body as any);
+              
+              // Download in background
+              pipeline(nodeStream, fileStream).catch(err => {
+                console.error(`[Stream] Background download failed for ${videoId}:`, err.message);
+                if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+              });
+
+              return res.json({ ok: true, prefetching: true, contentType });
             }
           } catch (warmupError) {
-            console.warn(`[Stream] Prefetch warmup failed for ${videoId}:`, warmupError);
+            console.warn(`[Stream] Prefetch download failed for ${videoId}:`, warmupError);
           }
 
           return res.json({ ok: true, prefetched: true, contentType });
+        }
+
+        if (fs.existsSync(cachePath)) {
+          console.log(`[Stream] ✓ Serving from Disk Cache: ${videoId}`);
+          const stats = fs.statSync(cachePath);
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Length', stats.size);
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('X-Cache-Status', 'HIT');
+          
+          const range = req.headers.range;
+          if (range) {
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
+            fs.createReadStream(cachePath, { start, end }).pipe(res);
+          } else {
+            res.status(200);
+            fs.createReadStream(cachePath).pipe(res);
+          }
+          return;
         }
 
         const rangeHeader = req.headers['range'];
@@ -1489,7 +1558,7 @@ async function startServer() {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, ngrok-skip-browser-warning');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
       res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
       const fwdContentLength = audioResponse.headers.get('content-length');
       if (fwdContentLength) res.setHeader('Content-Length', fwdContentLength);
@@ -1502,6 +1571,7 @@ async function startServer() {
       if (audioResponse.body) {
         const { Readable } = await import('stream');
         const nodeStream = Readable.fromWeb(audioResponse.body as any);
+        nodeStream.on('error', (err) => console.error('[Stream Error]', err.message));
         nodeStream.pipe(res);
         req.on('close', () => nodeStream.destroy());
         console.log(`[Stream] ✓ Piping ${contentType} for ${videoId}`);

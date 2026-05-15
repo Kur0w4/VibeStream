@@ -34,13 +34,8 @@ export default function App() {
   // Ngrok Warmup: Attempt to authorize the session with the skip-warning header
   // This helps when opening the app on a new device.
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/health`, {
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        ...(Capacitor.isNativePlatform() ? { 'X-Requested-With': 'com.vibestream.app' } : {}),
-      },
-      mode: 'cors'
-    }).catch(() => {});
+    // Basic connectivity check
+    fetch(`${API_BASE_URL}/api/health`).catch(() => {});
   }, []);
 
   return (
