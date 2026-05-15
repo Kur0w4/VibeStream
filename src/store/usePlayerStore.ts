@@ -20,6 +20,17 @@ export interface User {
   avatar?: string;
 }
 
+type PlayerPlaylist = { id: string; name: string; tracks: Track[] };
+
+const NGROK_HEADERS = {
+  'ngrok-skip-browser-warning': 'true',
+  'X-Requested-With': 'com.vibestream.app',
+};
+
+const downloadQueue: Track[] = [];
+const queuedDownloadIds = new Set<string>();
+let isProcessingDownloadQueue = false;
+
 interface PlayerState {
   currentTrack: Track | null;
   isPlaying: boolean;
@@ -46,6 +57,7 @@ interface PlayerState {
   listeningHistory: Track[];
   downloadedIds: string[]; // List of videoIds
   downloadingIds: string[]; // List of videoIds currently being downloaded
+  queuedDownloadIds: string[]; // List of videoIds queued for background download
 
   // Player actions
   playTrack: (track: Track, context?: Track[]) => void;
@@ -89,12 +101,102 @@ interface PlayerState {
   // Offline Actions
   initOffline: () => Promise<void>;
   toggleDownload: (track: Track) => Promise<void>;
+  enqueueTrackDownloads: (tracks: Track[]) => void;
+  downloadPlaylist: (tracks: Track[]) => void;
 }
 
 // ─── API configuration ────────────────────────────────────────────────────────
 // The API URL must point to your backend server (e.g., Render for production, or your local IP for testing Capacitor).
 // For the deployed Firebase web app, it MUST point to the Render backend.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+const fetchTrackBlob = async (track: Track): Promise<Blob> => {
+  const streamUrl = `${API_BASE_URL}/api/stream/${track.videoId}`;
+  const response = await fetch(streamUrl, { headers: NGROK_HEADERS });
+  if (!response.ok) throw new Error('Failed to fetch stream');
+  return response.blob();
+};
+
+const syncQueuedDownloadIds = (set: (partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>)) => void) => {
+  set({ queuedDownloadIds: Array.from(queuedDownloadIds) });
+};
+
+const processDownloadQueue = async (
+  get: () => PlayerState,
+  set: (partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>)) => void
+) => {
+  if (isProcessingDownloadQueue) return;
+  isProcessingDownloadQueue = true;
+
+  while (downloadQueue.length > 0) {
+    const track = downloadQueue.shift();
+    if (!track) continue;
+
+    const latestState = get();
+    if (
+      latestState.downloadedIds.includes(track.videoId) ||
+      latestState.downloadingIds.includes(track.videoId)
+    ) {
+      queuedDownloadIds.delete(track.videoId);
+      syncQueuedDownloadIds(set);
+      continue;
+    }
+
+    set((s) => ({ downloadingIds: [...s.downloadingIds, track.videoId] }));
+
+    try {
+      const blob = await fetchTrackBlob(track);
+      await offlineService.saveTrack({
+        videoId: track.videoId,
+        blob,
+        metadata: {
+          title: track.title,
+          artist: track.artist,
+          thumbnail: track.thumbnail,
+          duration: track.duration,
+        },
+        savedAt: Date.now(),
+      });
+
+      set((s) => ({
+        downloadedIds: s.downloadedIds.includes(track.videoId)
+          ? s.downloadedIds
+          : [...s.downloadedIds, track.videoId],
+      }));
+    } catch (error) {
+      console.error('[Offline] Background download failed:', error);
+    } finally {
+      queuedDownloadIds.delete(track.videoId);
+      set((s) => ({
+        downloadingIds: s.downloadingIds.filter((id) => id !== track.videoId),
+        queuedDownloadIds: Array.from(queuedDownloadIds),
+      }));
+    }
+  }
+
+  isProcessingDownloadQueue = false;
+};
+
+const queueTracksForDownload = (
+  tracks: Track[],
+  get: () => PlayerState,
+  set: (partial: Partial<PlayerState> | ((state: PlayerState) => Partial<PlayerState>)) => void
+) => {
+  const { downloadedIds, downloadingIds } = get();
+
+  for (const track of tracks) {
+    if (!track?.videoId) continue;
+    if (downloadedIds.includes(track.videoId)) continue;
+    if (downloadingIds.includes(track.videoId)) continue;
+    if (queuedDownloadIds.has(track.videoId)) continue;
+
+    queuedDownloadIds.add(track.videoId);
+    downloadQueue.push(track);
+  }
+
+  syncQueuedDownloadIds(set);
+  void processDownloadQueue(get, set);
+};
 
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -112,12 +214,13 @@ export const usePlayerStore = create<PlayerState>()(
       contextIndex: -1,
       queue: [] as Track[],
       user: null as User | null,
-      playlists: [] as { id: string; name: string; tracks: Track[] }[],
+      playlists: [] as PlayerPlaylist[],
       likedSongs: [] as Track[],
       followedArtists: [] as { name: string; thumbnail: string }[],
       listeningHistory: [] as Track[],
       downloadedIds: [] as string[],
       downloadingIds: [] as string[],
+      queuedDownloadIds: [] as string[],
 
       // ── Player ──────────────────────────────────────────────────────────────────
       playTrack: (track, context) => {
@@ -449,58 +552,40 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       toggleDownload: async (track) => {
-        const { downloadedIds, downloadingIds } = get();
+        const { downloadedIds, downloadingIds, queuedDownloadIds: queuedIds } = get();
         const isDownloaded = downloadedIds.includes(track.videoId);
         const isDownloading = downloadingIds.includes(track.videoId);
+        const isQueued = queuedIds.includes(track.videoId);
 
         if (isDownloading) return;
 
         if (isDownloaded) {
           // Remove download
           await offlineService.deleteTrack(track.videoId);
+          queuedDownloadIds.delete(track.videoId);
+          const queueIndex = downloadQueue.findIndex((item) => item.videoId === track.videoId);
+          if (queueIndex >= 0) downloadQueue.splice(queueIndex, 1);
           set(s => ({
-            downloadedIds: s.downloadedIds.filter(id => id !== track.videoId)
+            downloadedIds: s.downloadedIds.filter(id => id !== track.videoId),
+            queuedDownloadIds: Array.from(queuedDownloadIds),
           }));
+        } else if (isQueued) {
+          queuedDownloadIds.delete(track.videoId);
+          const queueIndex = downloadQueue.findIndex((item) => item.videoId === track.videoId);
+          if (queueIndex >= 0) downloadQueue.splice(queueIndex, 1);
+          set({ queuedDownloadIds: Array.from(queuedDownloadIds) });
         } else {
-          // Start download
-          set(s => ({ downloadingIds: [...s.downloadingIds, track.videoId] }));
-          
-          try {
-            // Fetch the stream as a blob
-            const streamUrl = `${API_BASE_URL}/api/stream/${track.videoId}`;
-            const response = await fetch(streamUrl, {
-              headers: {
-                'ngrok-skip-browser-warning': 'true'
-              }
-            });
-            if (!response.ok) throw new Error("Failed to fetch stream");
-            
-            const blob = await response.blob();
-            
-            await offlineService.saveTrack({
-              videoId: track.videoId,
-              blob,
-              metadata: {
-                title: track.title,
-                artist: track.artist,
-                thumbnail: track.thumbnail,
-                duration: track.duration
-              },
-              savedAt: Date.now()
-            });
-
-            set(s => ({
-              downloadedIds: [...s.downloadedIds, track.videoId],
-              downloadingIds: s.downloadingIds.filter(id => id !== track.videoId)
-            }));
-          } catch (error) {
-            console.error("[Offline] Download failed:", error);
-            set(s => ({
-              downloadingIds: s.downloadingIds.filter(id => id !== track.videoId)
-            }));
-          }
+          queueTracksForDownload([track], get, set);
         }
-      }
+      },
+
+      enqueueTrackDownloads: (tracks) => {
+        queueTracksForDownload(tracks, get, set);
+      },
+
+      downloadPlaylist: (tracks) => {
+        queueTracksForDownload(tracks, get, set);
+      },
     }),
     {
       name: 'vibestream-player-storage',

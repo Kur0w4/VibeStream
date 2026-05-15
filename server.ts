@@ -1254,6 +1254,7 @@ async function startServer() {
   app.get("/api/stream/:videoId", async (req: any, res: any) => {
     const videoId = req.params.videoId;
     const preferMp4 = req.query.native === '1';
+    const isPrefetch = req.query.prefetch === '1';
     console.log(`[Stream] Request for: ${videoId} (preferMp4=${preferMp4})`);
 
     try {
@@ -1263,8 +1264,32 @@ async function startServer() {
         return res.status(404).json({ error: 'No se pudo extraer el audio. El video puede no estar disponible.' });
       }
 
-      const { url: audioUrl, contentType } = extracted;
-      const rangeHeader = req.headers['range'];
+        const { url: audioUrl, contentType } = extracted;
+        if (isPrefetch) {
+          try {
+            const warmupResponse = await fetch(audioUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com',
+                'Range': 'bytes=0-65535',
+              },
+            });
+
+            if (warmupResponse.body) {
+              const reader = warmupResponse.body.getReader();
+              await reader.read().catch(() => {});
+              await reader.cancel().catch(() => {});
+            }
+          } catch (warmupError) {
+            console.warn(`[Stream] Prefetch warmup failed for ${videoId}:`, warmupError);
+          }
+
+          return res.json({ ok: true, prefetched: true, contentType });
+        }
+
+        const rangeHeader = req.headers['range'];
 
       const fetchHeaders: Record<string, string> = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',

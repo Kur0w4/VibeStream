@@ -39,13 +39,29 @@ const revokeObjectUrl = (url: string | null) => {
   }
 };
 
+const prefetchedStreamIds = new Set<string>();
+
+const prefetchTrackStream = async (videoId: string) => {
+  if (!videoId || prefetchedStreamIds.has(videoId)) return;
+  prefetchedStreamIds.add(videoId);
+
+  try {
+    await fetch(`${API_BASE_URL}/api/stream/${videoId}?prefetch=1`, {
+      headers: NGROK_HEADERS,
+    });
+  } catch (error) {
+    console.warn('[Audio] Stream prefetch failed:', error);
+    prefetchedStreamIds.delete(videoId);
+  }
+};
+
 const PlayerInner = () => {
   const {
     currentTrack, isPlaying, togglePause, volume, setVolume,
     progress, setProgress, duration, setDuration, setIsPlaying,
     isExpanded, setIsExpanded, queue, removeFromQueue, clearQueue,
     nextTrack, prevTrack, isShuffle, toggleShuffle, repeatMode, toggleRepeat,
-    seekTrigger
+    seekTrigger, playbackContext, contextIndex, enqueueTrackDownloads
   } = usePlayerStore();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -57,7 +73,7 @@ const PlayerInner = () => {
   const fallbackControllerRef = useRef<AbortController | null>(null);
   const fallbackAttemptedRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
-  const { downloadedIds, downloadingIds, toggleDownload } = usePlayerStore();
+  const { downloadedIds, downloadingIds, queuedDownloadIds, toggleDownload } = usePlayerStore();
 
   // ─── Offline Storage Handling ──────────────────────────────────────────────
   // ─── Ngrok Bypass / Streaming URL Handling ────────────────────────────────
@@ -140,6 +156,25 @@ const PlayerInner = () => {
 
   // ─── Native Audio Handlers ──────────────────────────────────────────────────
   
+  useEffect(() => {
+    if (!currentTrack) return;
+
+    const queueUpcoming = queue.filter((track) => track.videoId !== currentTrack.videoId);
+    const contextUpcoming =
+      playbackContext && contextIndex >= 0
+        ? playbackContext
+            .slice(contextIndex + 1)
+            .filter((track) => track.videoId !== currentTrack.videoId && !queueUpcoming.some((queued) => queued.videoId === track.videoId))
+        : [];
+    const upcomingTracks = [...queueUpcoming, ...contextUpcoming];
+
+    if (upcomingTracks.length === 0) return;
+
+    void prefetchTrackStream(upcomingTracks[0].videoId);
+    void Promise.all(upcomingTracks.slice(1, 3).map((track) => prefetchTrackStream(track.videoId)));
+    enqueueTrackDownloads(upcomingTracks);
+  }, [currentTrack, queue, playbackContext, contextIndex, enqueueTrackDownloads]);
+
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -494,9 +529,9 @@ const PlayerInner = () => {
                       >
                         <div className={cn(
                           "p-2.5 rounded-full bg-white/5 border border-white/10",
-                          downloadingIds.includes(currentTrack.videoId) && "animate-pulse"
+                          (downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId)) && "animate-pulse"
                         )}>
-                          {downloadingIds.includes(currentTrack.videoId) ? (
+                          {downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId) ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                           ) : downloadedIds.includes(currentTrack.videoId) ? (
                             <CheckCircle2 className="w-5 h-5" />
@@ -505,7 +540,7 @@ const PlayerInner = () => {
                           )}
                         </div>
                         <span className="text-[9px] font-black uppercase tracking-widest">
-                          {downloadingIds.includes(currentTrack.videoId) ? 'Downloading' : 
+                          {downloadingIds.includes(currentTrack.videoId) || queuedDownloadIds.includes(currentTrack.videoId) ? 'Downloading' : 
                            downloadedIds.includes(currentTrack.videoId) ? 'Offline' : 'Download'}
                         </span>
                       </button>

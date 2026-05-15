@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { searchTracks, getYourMix } from '../services/api';
-import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon, Heart } from 'lucide-react';
+import { ChevronLeft, Play, Pause, Shuffle, MoreHorizontal, Trash2, Loader2, Zap, ListMusic, Search as SearchIcon, Heart, ArrowDownCircle, CheckCircle2 } from 'lucide-react';
 import { usePlayerStore, Track } from '../store/usePlayerStore';
 import { TrackDropdown, useTrackDropdown } from '../components/Search';
 import { cn } from '../lib/utils';
@@ -9,7 +9,11 @@ import { cn } from '../lib/utils';
 export const PlaylistDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, playlists, playTrack, currentTrack, isPlaying, togglePause, removeTrackFromPlaylist, addTrackToPlaylist, likedSongs, toggleLike } = usePlayerStore();
+  const {
+    user, playlists, playTrack, currentTrack, isPlaying, togglePause,
+    removeTrackFromPlaylist, addTrackToPlaylist, likedSongs, toggleLike,
+    downloadPlaylist, downloadedIds, downloadingIds, queuedDownloadIds
+  } = usePlayerStore();
   const [mixTracks, setMixTracks] = useState<Track[]>([]);
   const [mixLoading, setMixLoading] = useState(false);
   const { activeDropdown, setActiveDropdown, getTriggerRef, getRefForId } = useTrackDropdown();
@@ -78,6 +82,9 @@ export const PlaylistDetail = () => {
     const shuffled = [...tracks].sort(() => Math.random() - 0.5);
     playTrack(shuffled[0], shuffled);
   };
+  const playlistTrackIds = tracks.map((track) => track.videoId);
+  const allPlaylistTracksDownloaded = playlistTrackIds.length > 0 && playlistTrackIds.every((videoId) => downloadedIds.includes(videoId));
+  const playlistHasActiveDownloads = playlistTrackIds.some((videoId) => downloadingIds.includes(videoId) || queuedDownloadIds.includes(videoId));
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-bg-main to-black pb-36 px-0 md:px-0">
@@ -137,6 +144,27 @@ export const PlaylistDetail = () => {
         >
           <Shuffle className="w-6 h-6" />
         </button>
+        {!isMix && (
+          <button
+            onClick={() => downloadPlaylist(tracks)}
+            disabled={tracks.length === 0 || allPlaylistTracksDownloaded}
+            title="Download playlist for offline"
+            className={cn(
+              'p-3 rounded-full transition-all disabled:opacity-40',
+              playlistHasActiveDownloads || allPlaylistTracksDownloaded
+                ? 'text-accent bg-accent/10'
+                : 'text-text-dim hover:text-white hover:bg-white/5'
+            )}
+          >
+            {playlistHasActiveDownloads ? (
+              <Loader2 className="w-6 h-6 animate-spin" />
+            ) : allPlaylistTracksDownloaded ? (
+              <CheckCircle2 className="w-6 h-6" />
+            ) : (
+              <ArrowDownCircle className="w-6 h-6" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Playlist Search area for adding new tracks (moved to top) */}

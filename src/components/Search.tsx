@@ -25,10 +25,10 @@ export const TrackDropdown = ({
   onClose: () => void; 
   triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }) => {
-  const { playlists, addTrackToPlaylist, toggleLike, likedSongs, addToQueue, toggleDownload, downloadedIds, downloadingIds } = usePlayerStore();
+  const { playlists, addTrackToPlaylist, toggleLike, likedSongs, addToQueue, toggleDownload, downloadedIds, downloadingIds, queuedDownloadIds } = usePlayerStore();
   const liked = likedSongs?.some((t) => t.id === track.id);
   const isDownloaded = downloadedIds.includes(track.videoId);
-  const isDownloading = downloadingIds.includes(track.videoId);
+  const isDownloading = downloadingIds.includes(track.videoId) || queuedDownloadIds.includes(track.videoId);
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
 
