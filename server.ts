@@ -205,6 +205,54 @@ function filterDuration(video: any) {
   return true;
 }
 
+function extractPlaylistId(input: string) {
+  const value = input.trim();
+  if (!value) return "";
+
+  try {
+    const parsed = new URL(value);
+    const list = parsed.searchParams.get("list");
+    if (list) return list.trim();
+  } catch {
+    // Not a full URL. Fall through to regex / raw value handling.
+  }
+
+  const listMatch = value.match(/[?&]list=([^&]+)/i);
+  if (listMatch?.[1]) return listMatch[1].trim();
+
+  return value;
+}
+
+async function getPlaylistFromInnertube(playlistId: string, limit = 100) {
+  if (!globalYt) return null;
+
+  const playlist = await globalYt.getPlaylist(playlistId).catch((err) => {
+    console.warn(`[Server] youtubei.js playlist lookup failed for ${playlistId}:`, err?.message || err);
+    return null;
+  });
+
+  if (!playlist) return null;
+
+  const items = [...playlist.items];
+  let current = playlist;
+
+  while (current.has_continuation && items.length < limit) {
+    const nextPage = await current.getContinuation().catch((err) => {
+      console.warn(`[Server] youtubei.js playlist continuation failed for ${playlistId}:`, err?.message || err);
+      return null;
+    });
+
+    if (!nextPage) break;
+    items.push(...nextPage.items);
+    current = nextPage;
+  }
+
+  return {
+    title: playlist.info?.title || "Imported Playlist",
+    items: items.slice(0, limit)
+  };
+}
+
 // ─── Server-Side Search Cache ──────────────────────────────────────────────────
 // Caches YouTube search results to avoid hitting the slow external API
 // on repeated identical queries. TTL: 5 minutes.
@@ -602,6 +650,113 @@ async function startServer() {
 
     try {
       console.log(`[Server] Importing playlist: ${url}`);
+
+      const resolvedPlaylistId = extractPlaylistId(url);
+      if (!resolvedPlaylistId) {
+        return res.status(400).json({ error: "No se pudo extraer el ID de la playlist desde el enlace enviado." });
+      }
+
+      const normalizedPlaylistUrl = `https://www.youtube.com/playlist?list=${resolvedPlaylistId}`;
+      console.log(`[Server] Resolved playlist URL: ${normalizedPlaylistUrl}, ID: ${resolvedPlaylistId}`);
+
+      const newInternalId = Math.random().toString(36).substr(2, 9);
+      let importedPlaylistName = "Imported Playlist";
+      let importedTracks: any[] = [];
+
+      const playlistFromUrl = await YouTube.getPlaylist(normalizedPlaylistUrl).catch((err) => {
+        console.warn(`[Server] youtube-sr full URL lookup failed for ${resolvedPlaylistId}:`, err?.message || err);
+        return null;
+      });
+      const playlistFromId = playlistFromUrl ? null : await YouTube.getPlaylist(resolvedPlaylistId).catch((err) => {
+        console.warn(`[Server] youtube-sr ID lookup failed for ${resolvedPlaylistId}:`, err?.message || err);
+        return null;
+      });
+      const legacyPlaylist = playlistFromUrl || playlistFromId;
+
+      if (legacyPlaylist) {
+        await legacyPlaylist.fetch(100).catch((err) => {
+          console.warn(`[Server] youtube-sr fetch failed for ${resolvedPlaylistId}:`, err?.message || err);
+        });
+
+        importedPlaylistName = legacyPlaylist.title || importedPlaylistName;
+        importedTracks = (legacyPlaylist.videos || []).map((v: any) => {
+          const videoId = v.id;
+          if (!videoId) return null;
+
+          let artist = v.channel?.name || "YouTube Artist";
+          if (artist.toLowerCase().endsWith(" - topic")) artist = artist.slice(0, -8);
+
+          return {
+            playlist_id: newInternalId,
+            video_id: videoId,
+            title: cleanTitle(v.title || "Unknown Title"),
+            artist,
+            thumbnail: v.thumbnail?.url || "",
+            duration: v.durationFormatted || "4:00",
+            url: `https://www.youtube.com/watch?v=${videoId}`
+          };
+        }).filter(Boolean);
+      }
+
+      if (importedTracks.length === 0) {
+        const innertubePlaylist = await getPlaylistFromInnertube(resolvedPlaylistId, 100);
+        if (innertubePlaylist) {
+          importedPlaylistName = innertubePlaylist.title || importedPlaylistName;
+          importedTracks = innertubePlaylist.items.map((v: any) => {
+            const videoId = v.id;
+            if (!videoId || v.is_playable === false) return null;
+
+            let artist = v.author?.name || "YouTube Artist";
+            if (artist.toLowerCase().endsWith(" - topic")) artist = artist.slice(0, -8);
+
+            const thumbnails = Array.isArray(v.thumbnails) ? v.thumbnails : [];
+            const bestThumb = thumbnails[thumbnails.length - 1];
+
+            return {
+              playlist_id: newInternalId,
+              video_id: videoId,
+              title: cleanTitle(v.title?.toString?.() || "Unknown Title"),
+              artist,
+              thumbnail: bestThumb?.url || "",
+              duration: v.duration?.text || "4:00",
+              url: `https://www.youtube.com/watch?v=${videoId}`
+            };
+          }).filter(Boolean);
+        }
+      }
+
+      if (importedTracks.length === 0) {
+        return res.status(404).json({ error: "No se pudo leer la playlist. Verifica que sea pública, que tenga videos accesibles y que el enlace contenga el parámetro list=." });
+      }
+
+      await db.execute({
+        sql: "INSERT INTO playlists (id, user_id, name) VALUES (?,?,?)",
+        args: [newInternalId, req.userId, importedPlaylistName]
+      });
+
+      for (const track of importedTracks) {
+        if (!track) continue;
+        await db.execute({
+          sql: "INSERT OR IGNORE INTO playlist_tracks (playlist_id,video_id,title,artist,thumbnail,duration,url) VALUES (?,?,?,?,?,?,?)",
+          args: [track.playlist_id, track.video_id, track.title, track.artist, track.thumbnail, track.duration, track.url]
+        });
+      }
+
+      return res.json({
+        id: newInternalId,
+        name: importedPlaylistName,
+        tracksCount: importedTracks.length,
+        tracks: importedTracks.map((track: any) => ({
+          id: track.video_id,
+          videoId: track.video_id,
+          title: track.title,
+          artist: track.artist,
+          thumbnail: track.thumbnail,
+          duration: track.duration,
+          url: track.url
+        }))
+      });
+      /*
       
       // Always use the full URL for best compatibility with youtube-sr
       let fullUrl = url.trim();
@@ -674,6 +829,7 @@ async function startServer() {
         tracksCount: tracks.length,
         tracks: tracks.map((t: any) => ({ id: t.video_id, videoId: t.video_id, title: t.title, artist: t.artist, thumbnail: t.thumbnail, duration: t.duration, url: t.url }))
       });
+      */
     } catch (error: any) {
       console.error("[Server] Import Error:", error);
       res.status(500).json({ error: "Failed to import playlist." });
@@ -1074,6 +1230,23 @@ async function startServer() {
 
   // URL cache to avoid re-extracting frequently requested tracks
   const streamUrlCache = new Map<string, { url: string; contentType: string; expiresAt: number }>();
+  const STREAM_FETCH_TIMEOUT_MS = 15000;
+  const EXTRACTION_TIMEOUT_MS = 20000;
+
+  async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+  }
 
   async function extractAudioUrl(
     videoId: string,
@@ -1094,7 +1267,7 @@ async function startServer() {
     if (globalYt && globalYt.session.logged_in) {
       try {
         console.log(`[Stream] Trying youtubei.js (Authenticated) for ${videoId}...`);
-        const info = await globalYt.getBasicInfo(videoId);
+        const info = await withTimeout(globalYt.getBasicInfo(videoId), EXTRACTION_TIMEOUT_MS, `youtubei.js ${videoId}`);
         const preferredAudioFormat = info.streaming_data?.adaptive_formats?.find((f: any) =>
           preferMp4
             ? f.mime_type?.includes('audio/mp4')
@@ -1119,7 +1292,7 @@ async function startServer() {
     // Strategy 1: yt-dlp via youtube-dl-exec (most reliable)
     try {
       const { youtubeDl } = await import('youtube-dl-exec');
-      const result: any = await youtubeDl(ytUrl, {
+      const result: any = await withTimeout(youtubeDl(ytUrl, {
         dumpSingleJson: true,
         noWarnings: true,
         noCheckCertificates: true,
@@ -1131,7 +1304,7 @@ async function startServer() {
           'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
           'Referer:https://www.youtube.com/',
         ],
-      });
+      }), EXTRACTION_TIMEOUT_MS, `yt-dlp ${videoId}`);
 
       if (result && result.url) {
         const ext = result.ext || 'webm';
@@ -1148,14 +1321,14 @@ async function startServer() {
     // Strategy 2: @distube/ytdl-core fallback
     try {
       const agent = ytdl.createAgent();
-      const info = await ytdl.getInfo(ytUrl, {
+      const info = await withTimeout(ytdl.getInfo(ytUrl, {
         agent,
         requestOptions: {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
           }
         }
-      });
+      }), EXTRACTION_TIMEOUT_MS, `ytdl-core ${videoId}`);
       let format = preferMp4
         ? info.formats.find((f: any) => f.mimeType?.includes('audio/mp4'))
         : info.formats.find((f: any) => f.mimeType?.includes('audio/webm'));
@@ -1299,7 +1472,10 @@ async function startServer() {
       };
       if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
-      const audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
+      const audioResponse = await fetch(audioUrl, {
+        headers: fetchHeaders,
+        signal: AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS)
+      });
 
       if (!audioResponse.ok && audioResponse.status !== 206) {
         // URL may have expired — clear cache and return error

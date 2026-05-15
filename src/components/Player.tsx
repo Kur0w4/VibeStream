@@ -25,6 +25,8 @@ const NGROK_HEADERS = {
 };
 
 const isNativePlatform = Capacitor.isNativePlatform();
+const usesNgrokBackend = API_BASE_URL.includes('ngrok');
+const nativeStreamTimeoutMs = 15000;
 
 const stopAudioElement = (audio: HTMLAudioElement | null) => {
   if (!audio) return;
@@ -52,6 +54,20 @@ const prefetchTrackStream = async (videoId: string) => {
   } catch (error) {
     console.warn('[Audio] Stream prefetch failed:', error);
     prefetchedStreamIds.delete(videoId);
+  }
+};
+
+const fetchWithTimeout = async (input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = nativeStreamTimeoutMs) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 };
 
@@ -122,8 +138,30 @@ const PlayerInner = () => {
         }
       }
 
-      // 2. Prefer direct progressive streaming first.
-      // This avoids waiting for the full file before playback.
+      // 2. Ngrok on native WebViews is unreliable with raw <audio src>
+      // because the element cannot send bypass headers. Use a headered fetch first.
+      if (isNativePlatform && usesNgrokBackend) {
+        try {
+          const response = await fetchWithTimeout(originalUrl, { headers: NGROK_HEADERS }, nativeStreamTimeoutMs);
+          if (!response.ok) {
+            throw new Error(`Native ngrok fetch failed with status ${response.status}`);
+          }
+
+          const blob = await response.blob();
+          if (!active) return;
+
+          const objectUrl = URL.createObjectURL(blob);
+          objectUrlToCleanup = objectUrl;
+          objectUrlRef.current = objectUrl;
+          setStreamUrl(objectUrl);
+          setPlayerError(false);
+          return;
+        } catch (err) {
+          console.error('[Audio] Native ngrok primary fetch failed:', err);
+        }
+      }
+
+      // 3. Prefer direct progressive streaming when the backend is directly reachable.
       if (active) {
         revokeObjectUrl(objectUrlRef.current);
         objectUrlRef.current = null;
@@ -231,10 +269,10 @@ const PlayerInner = () => {
           signal: controller.signal,
         }).catch(() => {});
 
-        const response = await fetch(originalUrl, {
+        const response = await fetchWithTimeout(originalUrl, {
           headers: NGROK_HEADERS,
           signal: controller.signal,
-        });
+        }, nativeStreamTimeoutMs);
 
         if (!response.ok) {
           throw new Error(`Native stream fetch failed with status ${response.status}`);
