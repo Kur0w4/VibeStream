@@ -21,6 +21,7 @@ import { Settings } from './pages/Settings';
 import { OfflineTracks } from './pages/OfflineTracks';
 import { useEffect } from 'react';
 import { API_BASE_URL } from './store/usePlayerStore';
+import { Capacitor } from '@capacitor/core';
 
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-20 animate-in fade-in duration-500">
@@ -34,7 +35,10 @@ export default function App() {
   // This helps when opening the app on a new device.
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/health`, {
-      headers: { 'ngrok-skip-browser-warning': 'true' },
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(Capacitor.isNativePlatform() ? { 'X-Requested-With': 'com.vibestream.app' } : {}),
+      },
       mode: 'cors'
     }).catch(() => {});
   }, []);

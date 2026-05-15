@@ -435,6 +435,8 @@ export const usePlayerStore = create<PlayerState>()(
       // ── History ──────────────────────────────────────────────────────────────
       addToHistory: async (track) => {
         try {
+          const hasAuth = !!get().user || !!localStorage.getItem('vibestream_token');
+          if (!hasAuth) return;
           await apiClient('/api/history', { method: 'POST', body: JSON.stringify(track) });
           set((s) => ({ listeningHistory: [track, ...s.listeningHistory.filter(t => t.videoId !== track.videoId)].slice(0, 50) }));
         } catch {}

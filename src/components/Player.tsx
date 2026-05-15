@@ -26,7 +26,18 @@ const NGROK_HEADERS = {
 
 const isNativePlatform = Capacitor.isNativePlatform();
 
+const stopAudioElement = (audio: HTMLAudioElement | null) => {
+  if (!audio) return;
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+};
 
+const revokeObjectUrl = (url: string | null) => {
+  if (url?.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+  }
+};
 
 const PlayerInner = () => {
   const {
@@ -43,7 +54,9 @@ const PlayerInner = () => {
   const [playerError, setPlayerError] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const isFirstLoad = useRef(true);
-  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  const fallbackControllerRef = useRef<AbortController | null>(null);
+  const fallbackAttemptedRef = useRef<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const { downloadedIds, downloadingIds, toggleDownload } = usePlayerStore();
 
   // ─── Offline Storage Handling ──────────────────────────────────────────────
@@ -52,6 +65,9 @@ const PlayerInner = () => {
 
   useEffect(() => {
     if (!currentTrack) {
+      stopAudioElement(audioRef.current);
+      setIsReady(false);
+      setPlayerError(false);
       setStreamUrl('');
       return;
     }
@@ -59,6 +75,18 @@ const PlayerInner = () => {
     let active = true;
     const originalUrl = `${API_BASE_URL}/api/stream/${currentTrack.videoId}${isNativePlatform ? '?native=1' : ''}`;
     let objectUrlToCleanup: string | null = null;
+    const audio = audioRef.current;
+
+    isFirstLoad.current = progress > 0;
+    setIsReady(false);
+    setPlayerError(false);
+    setStreamUrl('');
+    stopAudioElement(audio);
+    revokeObjectUrl(objectUrlRef.current);
+    objectUrlRef.current = null;
+    fallbackControllerRef.current?.abort();
+    fallbackControllerRef.current = null;
+    fallbackAttemptedRef.current = null;
 
     const updateStream = async () => {
       // 1. Check if it's already downloaded (Offline mode)
@@ -68,8 +96,9 @@ const PlayerInner = () => {
           if (trackData && active) {
             const objectUrl = URL.createObjectURL(trackData.blob);
             objectUrlToCleanup = objectUrl;
+            objectUrlRef.current = objectUrl;
             setStreamUrl(objectUrl);
-            setLocalUrl(objectUrl);
+            setPlayerError(false);
             return;
           }
         } catch (err) {
@@ -77,38 +106,12 @@ const PlayerInner = () => {
         }
       }
 
-      // 2. Native Android/iOS cannot attach custom headers to the <audio> request.
-      // For ngrok-backed streams, fetch the audio with headers and play a local blob URL instead.
-      if (originalUrl.includes('ngrok') && isNativePlatform) {
-        try {
-          await fetch(`${API_BASE_URL}/api/health`, { headers: NGROK_HEADERS }).catch(() => {});
-
-          const response = await fetch(originalUrl, {
-            headers: NGROK_HEADERS,
-          });
-
-          if (!response.ok) {
-            throw new Error(`Native stream fetch failed with status ${response.status}`);
-          }
-
-          const blob = await response.blob();
-          if (!active) return;
-
-          objectUrlToCleanup = URL.createObjectURL(blob);
-          setStreamUrl(objectUrlToCleanup);
-          setLocalUrl(objectUrlToCleanup);
-          setPlayerError(false);
-          return;
-        } catch (err) {
-          console.error('[Audio] Native ngrok blob streaming failed:', err);
-        }
-      }
-
-      // 3. Web and non-ngrok cases can stream directly.
+      // 2. Prefer direct progressive streaming first.
+      // This avoids waiting for the full file before playback.
       if (active) {
+        revokeObjectUrl(objectUrlRef.current);
+        objectUrlRef.current = null;
         setStreamUrl(originalUrl);
-        setLocalUrl(null);
-        setPlayerError(false);
       }
     };
 
@@ -116,11 +119,24 @@ const PlayerInner = () => {
 
     return () => {
       active = false;
+      fallbackControllerRef.current?.abort();
+      fallbackControllerRef.current = null;
       if (objectUrlToCleanup?.startsWith('blob:')) {
         URL.revokeObjectURL(objectUrlToCleanup);
       }
     };
   }, [currentTrack, downloadedIds]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!streamUrl) {
+      stopAudioElement(audio);
+      return;
+    }
+
+    audio.load();
+  }, [streamUrl]);
 
   // ─── Native Audio Handlers ──────────────────────────────────────────────────
   
@@ -135,6 +151,11 @@ const PlayerInner = () => {
     const audio = audioRef.current;
     if (!audio) return;
     setDuration(audio.duration);
+  };
+
+  const handleCanPlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
     setIsReady(true);
     if (isPlaying) audio.play().catch(() => {});
   };
@@ -150,8 +171,60 @@ const PlayerInner = () => {
     }
   };
 
-  const handleError = (e: any) => {
+  const handleError = async (e: any) => {
     console.error('[Audio] Error:', e);
+
+    const track = currentTrack;
+    const originalUrl = track
+      ? `${API_BASE_URL}/api/stream/${track.videoId}${isNativePlatform ? '?native=1' : ''}`
+      : '';
+    const canTryNgrokFallback =
+      !!track &&
+      isNativePlatform &&
+      originalUrl.includes('ngrok') &&
+      !streamUrl.startsWith('blob:') &&
+      fallbackAttemptedRef.current !== track.videoId;
+
+    if (canTryNgrokFallback) {
+      fallbackAttemptedRef.current = track!.videoId;
+      const controller = new AbortController();
+      fallbackControllerRef.current = controller;
+
+      try {
+        await fetch(`${API_BASE_URL}/api/health`, {
+          headers: NGROK_HEADERS,
+          signal: controller.signal,
+        }).catch(() => {});
+
+        const response = await fetch(originalUrl, {
+          headers: NGROK_HEADERS,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Native stream fetch failed with status ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        revokeObjectUrl(objectUrlRef.current);
+        objectUrlRef.current = objectUrl;
+        setStreamUrl(objectUrl);
+        setPlayerError(false);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name !== 'AbortError') {
+          console.error('[Audio] Native ngrok blob fallback failed:', err);
+        } else {
+          return;
+        }
+      } finally {
+        if (fallbackControllerRef.current === controller) {
+          fallbackControllerRef.current = null;
+        }
+      }
+    }
+
     setPlayerError(true);
     setIsReady(true);
   };
@@ -267,6 +340,7 @@ const PlayerInner = () => {
         src={streamUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={handleCanPlay}
         onEnded={handleEnded}
         onError={handleError}
         preload="auto"
