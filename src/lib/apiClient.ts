@@ -16,7 +16,6 @@ async function getAuth() {
 export async function apiClient<T = any>(url: string, opts?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true', // Bypass Ngrok free tier warning page
     ...((opts?.headers as any) || {}) 
   };
 

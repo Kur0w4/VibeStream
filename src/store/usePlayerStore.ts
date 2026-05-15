@@ -22,11 +22,6 @@ export interface User {
 
 type PlayerPlaylist = { id: string; name: string; tracks: Track[] };
 
-const NGROK_HEADERS = {
-  'ngrok-skip-browser-warning': 'true',
-  'X-Requested-With': 'com.vibestream.app',
-};
-
 const downloadQueue: Track[] = [];
 const queuedDownloadIds = new Set<string>();
 let isProcessingDownloadQueue = false;
@@ -126,7 +121,7 @@ export const getApiUrl = () => {
 
 const fetchTrackBlob = async (track: Track): Promise<Blob> => {
   const streamUrl = `${getApiUrl()}/api/stream/${track.videoId}`;
-  const response = await fetch(streamUrl, { headers: NGROK_HEADERS });
+  const response = await fetch(streamUrl);
   if (!response.ok) throw new Error('Failed to fetch stream');
   return response.blob();
 };

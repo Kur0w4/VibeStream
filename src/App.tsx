@@ -31,10 +31,8 @@ const PageLoader = () => (
 );
 
 export default function App() {
-  // Ngrok Warmup: Attempt to authorize the session with the skip-warning header
-  // This helps when opening the app on a new device.
   useEffect(() => {
-    // Basic connectivity check
+    // Basic connectivity check to wake up the backend if needed
     fetch(`${getApiUrl()}/api/health`).catch(() => {});
   }, []);
 
