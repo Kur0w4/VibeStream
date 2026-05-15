@@ -168,7 +168,31 @@ const PlayerInner = () => {
         audioRef.current.currentTime = details.seekTime;
       }
     });
+    ms.setActionHandler('seekbackward', () => {
+      if (audioRef.current) audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+    });
+    ms.setActionHandler('seekforward', () => {
+      if (audioRef.current) audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 10);
+    });
+    ms.setActionHandler('stop', () => {
+      setIsPlaying(false);
+      if (audioRef.current) audioRef.current.currentTime = 0;
+    });
   }, [setIsPlaying, prevTrack, nextTrack]);
+
+  // Update Media Session Position State
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !audioRef.current || !isReady || !duration) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: duration || 0,
+        playbackRate: audioRef.current.playbackRate || 1,
+        position: (progress * duration) || 0,
+      });
+    } catch (e) {
+      // Some browsers might not support certain position state combinations
+    }
+  }, [progress, duration, isReady]);
 
   const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
