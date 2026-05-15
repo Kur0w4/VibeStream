@@ -215,8 +215,7 @@ const PlayerInner = () => {
 
     void prefetchTrackStream(upcomingTracks[0].videoId);
     void Promise.all(upcomingTracks.slice(1, 3).map((track) => prefetchTrackStream(track.videoId)));
-    enqueueTrackDownloads(upcomingTracks);
-  }, [currentTrack, queue, playbackContext, contextIndex, enqueueTrackDownloads]);
+  }, [currentTrack, queue, playbackContext, contextIndex]);
 
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
