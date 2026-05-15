@@ -4,6 +4,7 @@ import {
   Maximize2, VolumeX, ChevronDown, AlertTriangle, ListMusic, X, Trash2,
   Download, CheckCircle2, Loader2, ArrowDownCircle
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { usePlayerStore, API_BASE_URL } from '../store/usePlayerStore';
 import { offlineService } from '../lib/offlineService';
 import { cn } from '../lib/utils';
@@ -17,6 +18,13 @@ const formatTime = (seconds: number): string => {
   const sec = Math.floor(seconds % 60);
   return `${min}:${sec.toString().padStart(2, '0')}`;
 };
+
+const NGROK_HEADERS = {
+  'ngrok-skip-browser-warning': 'true',
+  'X-Requested-With': 'com.vibestream.app',
+};
+
+const isNativePlatform = Capacitor.isNativePlatform();
 
 
 
@@ -50,6 +58,7 @@ const PlayerInner = () => {
 
     let active = true;
     const originalUrl = `${API_BASE_URL}/api/stream/${currentTrack.videoId}`;
+    let objectUrlToCleanup: string | null = null;
 
     const updateStream = async () => {
       // 1. Check if it's already downloaded (Offline mode)
@@ -58,8 +67,9 @@ const PlayerInner = () => {
           const trackData = await offlineService.getTrack(currentTrack.videoId);
           if (trackData && active) {
             const objectUrl = URL.createObjectURL(trackData.blob);
+            objectUrlToCleanup = objectUrl;
             setStreamUrl(objectUrl);
-            setLocalUrl(objectUrl); // for cleanup
+            setLocalUrl(objectUrl);
             return;
           }
         } catch (err) {
@@ -67,37 +77,48 @@ const PlayerInner = () => {
         }
       }
 
-      // 2. If it's an ngrok URL, we need to bypass the warning
-      if (originalUrl.includes('ngrok')) {
-        // Try to prime the cookie first (fastest)
+      // 2. Native Android/iOS cannot attach custom headers to the <audio> request.
+      // For ngrok-backed streams, fetch the audio with headers and play a local blob URL instead.
+      if (originalUrl.includes('ngrok') && isNativePlatform) {
         try {
-          await fetch(`${API_BASE_URL}/api/health`, {
-            headers: { 'ngrok-skip-browser-warning': 'true' }
+          await fetch(`${API_BASE_URL}/api/health`, { headers: NGROK_HEADERS }).catch(() => {});
+
+          const response = await fetch(originalUrl, {
+            headers: NGROK_HEADERS,
           });
-        } catch (e) {}
-        
-        // For Android/Capacitor, priming might not be enough for the <audio> tag.
-        // If we are on mobile, we'll fetch the first chunk as a blob to be sure.
-        if ((window as any).Capacitor) {
-           // We'll use the original URL but append a skip-warning hint if the server supported it.
-           // Since the server doesn't, we'll just use the original URL and hope priming worked.
-           // If the user still sees errors, we will move to full blob streaming.
-           setStreamUrl(originalUrl);
-        } else {
-           setStreamUrl(originalUrl);
+
+          if (!response.ok) {
+            throw new Error(`Native stream fetch failed with status ${response.status}`);
+          }
+
+          const blob = await response.blob();
+          if (!active) return;
+
+          objectUrlToCleanup = URL.createObjectURL(blob);
+          setStreamUrl(objectUrlToCleanup);
+          setLocalUrl(objectUrlToCleanup);
+          setPlayerError(false);
+          return;
+        } catch (err) {
+          console.error('[Audio] Native ngrok blob streaming failed:', err);
         }
-      } else {
-        setStreamUrl(originalUrl);
       }
-      
-      if (active) setLocalUrl(null);
+
+      // 3. Web and non-ngrok cases can stream directly.
+      if (active) {
+        setStreamUrl(originalUrl);
+        setLocalUrl(null);
+        setPlayerError(false);
+      }
     };
 
     updateStream();
 
     return () => {
       active = false;
-      if (localUrl && localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
+      if (objectUrlToCleanup?.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrlToCleanup);
+      }
     };
   }, [currentTrack, downloadedIds]);
 

@@ -33,9 +33,9 @@ export default function App() {
   // Ngrok Warmup: Attempt to authorize the session with the skip-warning header
   // This helps when opening the app on a new device.
   useEffect(() => {
-    fetch(API_BASE_URL, {
+    fetch(`${API_BASE_URL}/api/health`, {
       headers: { 'ngrok-skip-browser-warning': 'true' },
-      mode: 'no-cors'
+      mode: 'cors'
     }).catch(() => {});
   }, []);
 
