@@ -57,7 +57,7 @@ const PlayerInner = () => {
     }
 
     let active = true;
-    const originalUrl = `${API_BASE_URL}/api/stream/${currentTrack.videoId}`;
+    const originalUrl = `${API_BASE_URL}/api/stream/${currentTrack.videoId}${isNativePlatform ? '?native=1' : ''}`;
     let objectUrlToCleanup: string | null = null;
 
     const updateStream = async () => {

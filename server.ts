@@ -1075,9 +1075,15 @@ async function startServer() {
   // URL cache to avoid re-extracting frequently requested tracks
   const streamUrlCache = new Map<string, { url: string; contentType: string; expiresAt: number }>();
 
-  async function extractAudioUrl(videoId: string): Promise<{ url: string; contentType: string } | null> {
+  async function extractAudioUrl(
+    videoId: string,
+    options: { preferMp4?: boolean } = {}
+  ): Promise<{ url: string; contentType: string } | null> {
+    const preferMp4 = options.preferMp4 === true;
+    const cacheKey = `${videoId}:${preferMp4 ? 'mp4' : 'default'}`;
+
     // Check cache first
-    const cached = streamUrlCache.get(videoId);
+    const cached = streamUrlCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return { url: cached.url, contentType: cached.contentType };
     }
@@ -1089,13 +1095,18 @@ async function startServer() {
       try {
         console.log(`[Stream] Trying youtubei.js (Authenticated) for ${videoId}...`);
         const info = await globalYt.getBasicInfo(videoId);
-        const format = info.chooseFormat({ type: 'audio', quality: 'best' });
+        const preferredAudioFormat = info.streaming_data?.adaptive_formats?.find((f: any) =>
+          preferMp4
+            ? f.mime_type?.includes('audio/mp4')
+            : f.mime_type?.includes('audio/webm')
+        );
+        const format = preferredAudioFormat || info.chooseFormat({ type: 'audio', quality: 'best' });
         if (format) {
           const url = format.decipher(globalYt.session.player);
           const finalUrl = typeof url === 'string' ? url : format.url;
           if (finalUrl) {
             const contentType = format.mime_type?.split(';')[0] || 'audio/webm';
-            streamUrlCache.set(videoId, { url: finalUrl, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+            streamUrlCache.set(cacheKey, { url: finalUrl, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
             console.log(`[Stream] youtubei.js extracted ${contentType} for ${videoId}`);
             return { url: finalUrl, contentType };
           }
@@ -1113,7 +1124,9 @@ async function startServer() {
         noWarnings: true,
         noCheckCertificates: true,
         preferFreeFormats: true,
-        format: 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+        format: preferMp4
+          ? 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio[ext=webm]/bestaudio/best'
+          : 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
         addHeader: [
           'User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
           'Referer:https://www.youtube.com/',
@@ -1124,7 +1137,7 @@ async function startServer() {
         const ext = result.ext || 'webm';
         const contentType = ext === 'webm' ? 'audio/webm' : ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
         // Cache for 5 hours (YouTube URLs expire in ~6h)
-        streamUrlCache.set(videoId, { url: result.url, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
+        streamUrlCache.set(cacheKey, { url: result.url, contentType, expiresAt: Date.now() + 5 * 60 * 60 * 1000 });
         console.log(`[Stream] yt-dlp extracted ${contentType} for ${videoId}`);
         return { url: result.url, contentType };
       }
@@ -1143,11 +1156,14 @@ async function startServer() {
           }
         }
       });
-      let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+      let format = preferMp4
+        ? info.formats.find((f: any) => f.mimeType?.includes('audio/mp4'))
+        : info.formats.find((f: any) => f.mimeType?.includes('audio/webm'));
+      if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
       if (!format) format = ytdl.chooseFormat(info.formats, { filter: (f: any) => f.hasAudio });
       if (format?.url) {
         const contentType = format.mimeType?.split(';')[0] || 'audio/webm';
-        streamUrlCache.set(videoId, { url: format.url, contentType, expiresAt: Date.now() + 4 * 60 * 60 * 1000 });
+        streamUrlCache.set(cacheKey, { url: format.url, contentType, expiresAt: Date.now() + 4 * 60 * 60 * 1000 });
         console.log(`[Stream] ytdl-core extracted ${contentType} for ${videoId}`);
         return { url: format.url, contentType };
       }
@@ -1181,11 +1197,12 @@ async function startServer() {
           const data = await res.json();
           const audioStreams = data.audioStreams;
           if (audioStreams && audioStreams.length > 0) {
-            // Prefer opus/webm
-            const bestAudio = audioStreams.find((s: any) => s.mimeType?.includes('audio/webm')) || audioStreams[0];
+            const bestAudio = preferMp4
+              ? audioStreams.find((s: any) => s.mimeType?.includes('audio/mp4')) || audioStreams[0]
+              : audioStreams.find((s: any) => s.mimeType?.includes('audio/webm')) || audioStreams[0];
             if (bestAudio && bestAudio.url) {
               const contentType = bestAudio.mimeType?.split(';')[0] || 'audio/webm';
-              streamUrlCache.set(videoId, { url: bestAudio.url, contentType, expiresAt: Date.now() + 2 * 60 * 60 * 1000 });
+              streamUrlCache.set(cacheKey, { url: bestAudio.url, contentType, expiresAt: Date.now() + 2 * 60 * 60 * 1000 });
               console.log(`[Stream] Piped API (${instance}) extracted ${contentType} for ${videoId}`);
               return { url: bestAudio.url, contentType };
             }
@@ -1215,10 +1232,12 @@ async function startServer() {
           if (!res.ok) continue;
           const data = await res.json();
           if (data.adaptiveFormats) {
-            const audio = data.adaptiveFormats.find((f: any) => f.type?.includes('audio/webm') || f.type?.includes('audio/mp4'));
+            const audio = preferMp4
+              ? data.adaptiveFormats.find((f: any) => f.type?.includes('audio/mp4')) || data.adaptiveFormats.find((f: any) => f.type?.includes('audio/webm'))
+              : data.adaptiveFormats.find((f: any) => f.type?.includes('audio/webm')) || data.adaptiveFormats.find((f: any) => f.type?.includes('audio/mp4'));
             if (audio && audio.url) {
               const contentType = audio.type?.split(';')[0] || 'audio/webm';
-              streamUrlCache.set(videoId, { url: audio.url, contentType, expiresAt: Date.now() + 1 * 60 * 60 * 1000 });
+              streamUrlCache.set(cacheKey, { url: audio.url, contentType, expiresAt: Date.now() + 1 * 60 * 60 * 1000 });
               console.log(`[Stream] Invidious (${inst}) extracted ${contentType} for ${videoId}`);
               return { url: audio.url, contentType };
             }
@@ -1234,10 +1253,11 @@ async function startServer() {
 
   app.get("/api/stream/:videoId", async (req: any, res: any) => {
     const videoId = req.params.videoId;
-    console.log(`[Stream] Request for: ${videoId}`);
+    const preferMp4 = req.query.native === '1';
+    console.log(`[Stream] Request for: ${videoId} (preferMp4=${preferMp4})`);
 
     try {
-      const extracted = await extractAudioUrl(videoId);
+      const extracted = await extractAudioUrl(videoId, { preferMp4 });
 
       if (!extracted) {
         return res.status(404).json({ error: 'No se pudo extraer el audio. El video puede no estar disponible.' });
@@ -1258,7 +1278,7 @@ async function startServer() {
 
       if (!audioResponse.ok && audioResponse.status !== 206) {
         // URL may have expired — clear cache and return error
-        streamUrlCache.delete(videoId);
+        streamUrlCache.delete(`${videoId}:${preferMp4 ? 'mp4' : 'default'}`);
         console.error(`[Stream] Audio fetch failed ${audioResponse.status} for ${videoId}`);
         return res.status(502).json({ error: 'Error al obtener el audio de YouTube.' });
       }
