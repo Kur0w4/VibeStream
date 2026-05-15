@@ -19,6 +19,12 @@ export async function apiClient<T = any>(url: string, opts?: RequestInit): Promi
     'ngrok-skip-browser-warning': 'true', // Bypass Ngrok free tier warning page
     ...((opts?.headers as any) || {}) 
   };
+
+  // Detect if running on Capacitor (Native Mobile)
+  const isNative = (window as any).Capacitor !== undefined;
+  if (isNative) {
+    headers['X-Requested-With'] = 'com.vibestream.app';
+  }
   
   // 1. Obtener Token JWT local (el más rápido y persistente)
   const localToken = localStorage.getItem('vibestream_token');

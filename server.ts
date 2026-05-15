@@ -1267,6 +1267,9 @@ async function startServer() {
       res.setHeader('Content-Type', contentType);
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, ngrok-skip-browser-warning');
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
       const fwdContentLength = audioResponse.headers.get('content-length');
       if (fwdContentLength) res.setHeader('Content-Length', fwdContentLength);
       const fwdContentRange = audioResponse.headers.get('content-range');

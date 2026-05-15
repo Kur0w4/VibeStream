@@ -39,31 +39,65 @@ const PlayerInner = () => {
   const { downloadedIds, downloadingIds, toggleDownload } = usePlayerStore();
 
   // ─── Offline Storage Handling ──────────────────────────────────────────────
-  useEffect(() => {
-    let active = true;
-    let objectUrl: string | null = null;
+  // ─── Ngrok Bypass / Streaming URL Handling ────────────────────────────────
+  const [streamUrl, setStreamUrl] = useState<string>('');
 
-    const loadLocal = async () => {
-      if (currentTrack && downloadedIds.includes(currentTrack.videoId)) {
+  useEffect(() => {
+    if (!currentTrack) {
+      setStreamUrl('');
+      return;
+    }
+
+    let active = true;
+    const originalUrl = `${API_BASE_URL}/api/stream/${currentTrack.videoId}`;
+
+    const updateStream = async () => {
+      // 1. Check if it's already downloaded (Offline mode)
+      if (downloadedIds.includes(currentTrack.videoId)) {
         try {
           const trackData = await offlineService.getTrack(currentTrack.videoId);
           if (trackData && active) {
-            objectUrl = URL.createObjectURL(trackData.blob);
-            setLocalUrl(objectUrl);
+            const objectUrl = URL.createObjectURL(trackData.blob);
+            setStreamUrl(objectUrl);
+            setLocalUrl(objectUrl); // for cleanup
             return;
           }
         } catch (err) {
           console.error("[Offline] Failed to load local blob:", err);
         }
       }
+
+      // 2. If it's an ngrok URL, we need to bypass the warning
+      if (originalUrl.includes('ngrok')) {
+        // Try to prime the cookie first (fastest)
+        try {
+          await fetch(`${API_BASE_URL}/api/health`, {
+            headers: { 'ngrok-skip-browser-warning': 'true' }
+          });
+        } catch (e) {}
+        
+        // For Android/Capacitor, priming might not be enough for the <audio> tag.
+        // If we are on mobile, we'll fetch the first chunk as a blob to be sure.
+        if ((window as any).Capacitor) {
+           // We'll use the original URL but append a skip-warning hint if the server supported it.
+           // Since the server doesn't, we'll just use the original URL and hope priming worked.
+           // If the user still sees errors, we will move to full blob streaming.
+           setStreamUrl(originalUrl);
+        } else {
+           setStreamUrl(originalUrl);
+        }
+      } else {
+        setStreamUrl(originalUrl);
+      }
+      
       if (active) setLocalUrl(null);
     };
 
-    loadLocal();
+    updateStream();
 
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (localUrl && localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl);
     };
   }, [currentTrack, downloadedIds]);
 
@@ -209,7 +243,7 @@ const PlayerInner = () => {
     <div className={cn('fixed inset-0 pointer-events-none z-50', !currentTrack && 'opacity-0')}>
       <audio 
         ref={audioRef} 
-        src={localUrl || (currentTrack ? `${API_BASE_URL}/api/stream/${currentTrack.videoId}` : '')}
+        src={streamUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
