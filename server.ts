@@ -27,7 +27,7 @@ let globalYt: Innertube | null = null;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─── Database Setup (Turso) ──────────────────────────────────────────────────
+// â”€â”€â”€ Database Setup (Turso) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const dbUrl = process.env.TURSO_DATABASE_URL;
 const dbToken = process.env.TURSO_AUTH_TOKEN;
 
@@ -136,7 +136,7 @@ async function initDB() {
   }
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function cleanTitle(title: string) {
   if (!title) return "Unknown Song";
   return title
@@ -177,14 +177,14 @@ function mapVideo(video: any) {
        const parts = title.split(" - ");
        artist = parts[0].trim();
        title = parts[1];
-    } else if (title.includes("「")) {
-       const parts = title.split("「");
+    } else if (title.includes("ã€Œ")) {
+       const parts = title.split("ã€Œ");
        artist = parts[0].trim() || artist;
-       title = parts[1].replace("」", "").trim();
-    } else if (title.includes("【")) {
-       const parts = title.split("【");
+       title = parts[1].replace("ã€", "").trim();
+    } else if (title.includes("ã€")) {
+       const parts = title.split("ã€");
        artist = parts[0].trim() || artist;
-       title = parts[1].replace("】", "").trim();
+       title = parts[1].replace("ã€‘", "").trim();
     }
   }
 
@@ -261,7 +261,7 @@ async function getPlaylistFromInnertube(playlistId: string, limit = 100) {
   };
 }
 
-// ─── Server-Side Search Cache ──────────────────────────────────────────────────
+// â”€â”€â”€ Server-Side Search Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Caches YouTube search results to avoid hitting the slow external API
 // on repeated identical queries. TTL: 5 minutes.
 const SERVER_CACHE_TTL = 5 * 60 * 1000;
@@ -282,7 +282,7 @@ function setServerCache(key: string, data: any[]): void {
   serverSearchCache.set(key, { data, expiresAt: Date.now() + SERVER_CACHE_TTL });
 }
 
-// Mood → genre seed mapping for personalized mood search
+// Mood â†’ genre seed mapping for personalized mood search
 const MOOD_SEEDS: Record<string, string[]> = {
   relax:    ['lofi chill beats', 'acoustic relaxing songs', 'ambient peaceful music', 'chill coffee shop jazz'],
   workout:  ['gym hype hip hop', 'high energy phonk', 'hardstyle workout', 'rock gym motivation'],
@@ -346,7 +346,7 @@ async function youtubeSearch(query: string, limit = 50, exact = false) {
   }
 }
 
-// ─── Server ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function startServer() {
   console.log(`[System] Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
   try {
@@ -357,7 +357,7 @@ async function startServer() {
         fs.mkdirSync(cacheDir, { recursive: true });
       }
       // youtubei.js usa el nombre de archivo de la clave (usualmente youtubei_oauth)
-      // Guardaremos el contenido ahí para que Innertube lo lea automáticamente.
+      // Guardaremos el contenido ahÃ­ para que Innertube lo lea automÃ¡ticamente.
       fs.writeFileSync(path.join(cacheDir, 'youtubei_oauth'), process.env.YOUTUBE_OAUTH_CACHE);
       console.log("[System] YOUTUBE_OAUTH_CACHE injected from environment.");
     }
@@ -374,7 +374,7 @@ async function startServer() {
   } catch (err) {
     console.error("[System] Failed to initialize Innertube:", err);
   }
-  // Asegurar inicialización de DB antes de configurar el servidor
+  // Asegurar inicializaciÃ³n de DB antes de configurar el servidor
   try {
     await initDB();
   } catch (err) {
@@ -390,14 +390,14 @@ async function startServer() {
   app.use(cors({ origin: true }));
   app.use(express.json());
 
-  // ── JWT Helpers ─────────────────────────────────────────────────────────────
+  // â”€â”€ JWT Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const JWT_SECRET = process.env.JWT_SECRET || "vibestream-fallback-secret";
   
   function signToken(payload: any) {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
   }
 
-  // ── Auth Helper ─────────────────────────────────────────────────────────────
+  // â”€â”€ Auth Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function normalizeFirebaseUser(token: string) {
     if (!token || !token.includes('.')) return null;
     try {
@@ -441,7 +441,7 @@ async function startServer() {
     return null;
   }
 
-  // ── Auth Middleware ──────────────────────────────────────────────────────────
+  // â”€â”€ Auth Middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.use(async (req: any, _res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -492,7 +492,7 @@ async function startServer() {
     next();
   }
 
-  // ── Auth Endpoints ───────────────────────────────────────────────────────────
+  // â”€â”€ Auth Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post("/api/auth/token", async (req: any, res: any) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: "Token required" });
@@ -572,7 +572,7 @@ async function startServer() {
     }
   });
 
-  // ── Liked Songs ──────────────────────────────────────────────────────────────
+  // â”€â”€ Liked Songs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/liked", isAuthenticated, async (req: any, res: any) => {
     const result = await db.execute({
       sql: "SELECT * FROM liked_songs WHERE user_id = ? ORDER BY created_at DESC",
@@ -601,7 +601,7 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // ── Playlists ────────────────────────────────────────────────────────────────
+  // â”€â”€ Playlists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/playlists", isAuthenticated, async (req: any, res: any) => {
     const plsRes = await db.execute({
       sql: "SELECT * FROM playlists WHERE user_id = ? ORDER BY created_at DESC",
@@ -734,7 +734,7 @@ async function startServer() {
       }
 
       if (importedTracks.length === 0) {
-        return res.status(404).json({ error: "No se pudo leer la playlist. Verifica que sea pública, que tenga videos accesibles y que el enlace contenga el parámetro list=." });
+        return res.status(404).json({ error: "No se pudo leer la playlist. Verifica que sea pÃºblica, que tenga videos accesibles y que el enlace contenga el parÃ¡metro list=." });
       }
 
       await db.execute({
@@ -788,13 +788,13 @@ async function startServer() {
       }
       
       if (!playlist) {
-        return res.status(404).json({ error: "Playlist not found. Asegúrate de que la playlist sea PÚBLICA y que el enlace sea correcto." });
+        return res.status(404).json({ error: "Playlist not found. AsegÃºrate de que la playlist sea PÃšBLICA y que el enlace sea correcto." });
       }
 
       await playlist.fetch(100).catch(() => {});
       
       if (!playlist.videos || playlist.videos.length === 0) {
-        return res.status(400).json({ error: "La playlist está vacía o no tiene videos accesibles." });
+        return res.status(400).json({ error: "La playlist estÃ¡ vacÃ­a o no tiene videos accesibles." });
       }
 
       const internalId = Math.random().toString(36).substr(2, 9);
@@ -852,7 +852,7 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // ── Listen History ───────────────────────────────────────────────────────────
+  // â”€â”€ Listen History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/history", isAuthenticated, async (req: any, res: any) => {
     const limit = parseInt(req.query.limit as string) || 100;
     try {
@@ -906,7 +906,7 @@ async function startServer() {
     } catch { res.status(500).json({ error: "DB error" }); }
   });
 
-  // ── Followed Artists ─────────────────────────────────────────────────────────
+  // â”€â”€ Followed Artists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/artists/followed", isAuthenticated, async (req: any, res: any) => {
     const result = await db.execute({
       sql: "SELECT * FROM followed_artists WHERE user_id = ? ORDER BY created_at DESC",
@@ -1015,7 +1015,7 @@ async function startServer() {
     }
   });
 
-  // ── Personalized Trends ───────────────────────────────────────────────────────
+  // â”€â”€ Personalized Trends â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/trends", async (req: any, res: any) => {
     try {
       const globalQueries = [
@@ -1074,7 +1074,7 @@ async function startServer() {
     }
   });
 
-  // ── Mood-Based Personalized Search ───────────────────────────────────────────
+  // â”€â”€ Mood-Based Personalized Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/search/mood", async (req: any, res: any) => {
     const mood = ((req.query.mood as string) || '').toLowerCase().trim();
     const artistsParam = (req.query.artists as string) || '';
@@ -1112,7 +1112,7 @@ async function startServer() {
     }
   });
 
-  // ── Artist Search ────────────────────────────────────────────────────────────
+  // â”€â”€ Artist Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Default popular artists when no query
   const DEFAULT_ARTISTS = [
     { name: 'Bad Bunny', thumbnail: 'https://i.ytimg.com/vi/bkFCJ5YDRB8/hqdefault.jpg' },
@@ -1147,7 +1147,7 @@ async function startServer() {
           // Extraer la mejor miniatura disponible
           let thumb = "";
           if (c.author?.thumbnails && c.author.thumbnails.length > 0) {
-            // Tomar la de mayor resolución (usualmente la última)
+            // Tomar la de mayor resoluciÃ³n (usualmente la Ãºltima)
             thumb = c.author.thumbnails[c.author.thumbnails.length - 1].url;
           }
 
@@ -1196,7 +1196,7 @@ async function startServer() {
     }
   });
 
-  // ── Artist Tracks ────────────────────────────────────────────────────────────
+  // â”€â”€ Artist Tracks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/artist/:name/tracks", async (req: any, res: any) => {
     const name = decodeURIComponent(req.params.name);
     try {
@@ -1208,7 +1208,7 @@ async function startServer() {
     }
   });
 
-  // ── Your Mix ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Your Mix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get("/api/mix", isAuthenticated, async (req: any, res: any) => {
     try {
       const historyRes = await db.execute({
@@ -1228,8 +1228,8 @@ async function startServer() {
     }
   });
 
-  // ── Native Audio Stream Extraction ──────────────────────────────────────────
-  // Uses yt-dlp (via youtube-dl-exec) as primary extractor — it's actively maintained
+  // â”€â”€ Native Audio Stream Extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Uses yt-dlp (via youtube-dl-exec) as primary extractor â€” it's actively maintained
   // and bypasses YouTube's decipher/n-transform protections that break ytdl-core.
   // Falls back to ytdl-core if yt-dlp fails.
   // We PIPE audio directly through our server (no redirects) so:
@@ -1238,7 +1238,7 @@ async function startServer() {
 
   // URL cache to avoid re-extracting frequently requested tracks
   const streamUrlCache = new Map<string, { url: string; contentType: string; expiresAt: number }>();
-  const STREAM_FETCH_TIMEOUT_MS = 20000;
+  const STREAM_FETCH_TIMEOUT_MS = 60000;
   const EXTRACTION_TIMEOUT_MS = 15000;
 
   // Cleanup old cache files every hour
@@ -1484,7 +1484,7 @@ async function startServer() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                 'Referer': 'https://www.youtube.com/',
               },
-              signal: AbortSignal.timeout(60000) // Give it a minute to download in bg
+              signal: AbortSignal.timeout(300000) // Increase to 5 minutes // Give it a minute to download in bg
             });
 
             if (downloadRes.body) {
@@ -1509,7 +1509,7 @@ async function startServer() {
         }
 
         if (fs.existsSync(cachePath)) {
-          console.log(`[Stream] ✓ Serving from Disk Cache: ${videoId}`);
+          console.log(`[Stream] âœ“ Serving from Disk Cache: ${videoId}`);
           const stats = fs.statSync(cachePath);
           res.setHeader('Content-Type', contentType);
           res.setHeader('Content-Length', stats.size);
@@ -1547,7 +1547,7 @@ async function startServer() {
       });
 
       if (!audioResponse.ok && audioResponse.status !== 206) {
-        // URL may have expired — clear cache and return error
+        // URL may have expired â€” clear cache and return error
         streamUrlCache.delete(`${videoId}:${preferMp4 ? 'mp4' : 'default'}`);
         console.error(`[Stream] Audio fetch failed ${audioResponse.status} for ${videoId}`);
         return res.status(502).json({ error: 'Error al obtener el audio de YouTube.' });
@@ -1574,7 +1574,7 @@ async function startServer() {
         nodeStream.on('error', (err) => console.error('[Stream Error]', err.message));
         nodeStream.pipe(res);
         req.on('close', () => nodeStream.destroy());
-        console.log(`[Stream] ✓ Piping ${contentType} for ${videoId}`);
+        console.log(`[Stream] âœ“ Piping ${contentType} for ${videoId}`);
       } else {
         res.status(500).json({ error: 'No response body from YouTube' });
       }
@@ -1587,10 +1587,10 @@ async function startServer() {
     }
   });
 
-  // ── Dedicated Download Endpoint ──────────────────────────────────────────────
+  // â”€â”€ Dedicated Download Endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Optimised for full-file download to the client with progress tracking.
   // Key differences from /api/stream:
-  //   1. No AbortSignal timeout — large audio files must fully transfer.
+  //   1. No AbortSignal timeout â€” large audio files must fully transfer.
   //   2. Always forwards Content-Length so the client can compute progress %.
   //   3. Saves to disk cache while streaming (avoids re-downloading on repeat).
   app.get("/api/download/:videoId", async (req: any, res: any) => {
@@ -1611,7 +1611,7 @@ async function startServer() {
       if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
       const cachePath = path.join(cacheDir, `${videoId}.${cacheExt}`);
 
-      // Serve from disk cache if available (always has Content-Length for progress)
+      // Serve from disk cache if available
       if (fs.existsSync(cachePath)) {
         console.log(`[Download] ✓ Serving from Disk Cache: ${videoId}`);
         const stats = fs.statSync(cachePath);
@@ -1624,12 +1624,14 @@ async function startServer() {
         return;
       }
 
-      // Fetch from YouTube — NO AbortSignal so full audio file downloads
       const fetchHeaders: Record<string, string> = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Encoding': 'identity',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.youtube.com/',
         'Origin': 'https://www.youtube.com',
+        'Connection': 'keep-alive',
       };
 
       const audioResponse = await fetch(audioUrl, { headers: fetchHeaders });
@@ -1647,28 +1649,44 @@ async function startServer() {
       res.status(200);
 
       if (audioResponse.body) {
-        const { Readable } = await import('stream');
+        const { Readable, PassThrough } = await import('stream');
+        const { pipeline } = await import('stream/promises');
+        
+        const tempPath = cachePath + '.tmp';
         const nodeStream = Readable.fromWeb(audioResponse.body as any);
-        const fileStream = fs.createWriteStream(cachePath);
+        const fileStream = fs.createWriteStream(tempPath);
+        
+        const passToRes = new PassThrough();
+        const passToFile = new PassThrough();
 
-        // Tee: stream to client AND save to disk simultaneously
-        nodeStream.on('data', (chunk: Buffer) => {
-          fileStream.write(chunk);
-          res.write(chunk);
+        nodeStream.pipe(passToRes);
+        nodeStream.pipe(passToFile);
+
+        // Client pipe
+        pipeline(passToRes, res).catch(err => {
+          console.log(`[Download] Client connection closed for ${videoId}: ${err.message}`);
+          nodeStream.unpipe(passToRes);
+          passToRes.destroy();
         });
-        nodeStream.on('end', () => {
-          fileStream.end();
-          res.end();
-          console.log(`[Download] ✓ Complete + cached to disk: ${videoId}`);
-        });
-        nodeStream.on('error', (err: Error) => {
-          console.error(`[Download Error] ${videoId}:`, err.message);
+
+        // Background file cache pipe
+        pipeline(passToFile, fileStream).then(() => {
+          if (fs.existsSync(tempPath)) {
+            fs.renameSync(tempPath, cachePath);
+            console.log(`[Download] ✓ Background cache complete: ${videoId}`);
+          }
+        }).catch(err => {
+          console.error(`[Download Error] Disk write failed for ${videoId}:`, err);
           fileStream.destroy();
-          if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
-          if (!res.headersSent) res.status(500).end();
-          else res.end();
+          if (fs.existsSync(tempPath)) { try { fs.unlinkSync(tempPath); } catch {} }
         });
-        req.on('close', () => nodeStream.destroy());
+
+        // Source stream error monitoring
+        nodeStream.on('error', (err) => {
+          console.error(`[Download Error] Source stream failed for ${videoId}:`, err);
+          passToRes.destroy();
+          passToFile.destroy();
+        });
       } else {
         res.status(500).json({ error: 'No response body from YouTube' });
       }
@@ -1680,7 +1698,7 @@ async function startServer() {
     }
   });
 
-  // ── Vite / Dev Server ───────────────────────────────────────────────────────
+  // â”€â”€ Vite / Dev Server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (process.env.NODE_ENV !== "production") {
     console.log("[System] Initializing Vite Dev Server...");
     const { createServer: createViteServer } = await import("vite");
@@ -1708,3 +1726,6 @@ startServer().catch(err => {
   console.error("[Fatal] Server failed to start:", err);
   process.exit(1);
 });
+
+
+

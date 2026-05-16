@@ -148,6 +148,10 @@ const fetchTrackBlob = async (
     }
   }
 
+  if (totalBytes > 0 && receivedBytes < totalBytes) {
+    throw new Error(`Incomplete download: ${receivedBytes}/${totalBytes} bytes`);
+  }
+
   const allChunks = new Uint8Array(receivedBytes);
   let pos = 0;
   for (const chunk of chunks) { allChunks.set(chunk, pos); pos += chunk.length; }
@@ -182,28 +186,44 @@ const processDownloadQueue = async (
     set((s) => ({ downloadingIds: [...s.downloadingIds, track.videoId] }));
 
     try {
-      const blob = await fetchTrackBlob(track, (pct) => {
-        set((s) => ({ downloadProgress: { ...s.downloadProgress, [track.videoId]: pct } }));
-      });
-      await offlineService.saveTrack({
-        videoId: track.videoId,
-        blob,
-        metadata: {
-          title: track.title,
-          artist: track.artist,
-          thumbnail: track.thumbnail,
-          duration: track.duration,
-        },
-        savedAt: Date.now(),
-      });
+      let blob: Blob | null = null;
+      let retries = 2;
+      
+      while (retries >= 0) {
+        try {
+          blob = await fetchTrackBlob(track, (pct) => {
+            set((s) => ({ downloadProgress: { ...s.downloadProgress, [track.videoId]: pct } }));
+          });
+          break; // Success!
+        } catch (err: any) {
+          if (retries === 0) throw err;
+          console.warn(`[Offline] Download failed, retrying... (${retries} left):`, err.message);
+          retries--;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
 
-      set((s) => ({
-        downloadedIds: s.downloadedIds.includes(track.videoId)
-          ? s.downloadedIds
-          : [...s.downloadedIds, track.videoId],
-      }));
+      if (blob) {
+        await offlineService.saveTrack({
+          videoId: track.videoId,
+          blob,
+          metadata: {
+            title: track.title,
+            artist: track.artist,
+            thumbnail: track.thumbnail,
+            duration: track.duration,
+          },
+          savedAt: Date.now(),
+        });
+
+        set((s) => ({
+          downloadedIds: s.downloadedIds.includes(track.videoId)
+            ? s.downloadedIds
+            : [...s.downloadedIds, track.videoId],
+        }));
+      }
     } catch (error) {
-      console.error('[Offline] Background download failed:', error);
+      console.error('[Offline] Background download failed after retries:', error);
     } finally {
       queuedDownloadIds.delete(track.videoId);
       set((s) => {
